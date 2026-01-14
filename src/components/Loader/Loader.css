@@ -1,0 +1,122 @@
+.loader-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  width: 100%;
+  position: relative;
+  animation: fadeIn 0.8s ease-out;
+}
+
+/* Organic Morphing Blob */
+.loader-blob {
+  width: 120px;
+  height: 120px;
+  background: linear-gradient(135deg, var(--color-accent-light) 0%, var(--color-accent) 100%);
+  border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+  animation: blob-morph 6s ease-in-out infinite alternate, blob-pulse 3s ease-in-out infinite;
+  box-shadow: 0 10px 40px -10px var(--color-accent);
+  position: relative;
+  margin-bottom: var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.loader-blob::after {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 10%;
+  right: 10%;
+  bottom: 10%;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.2);
+  filter: blur(10px);
+}
+
+/* Inner Icon/Symbol */
+/* .loader-icon {
+  color: white;
+  font-size: 2rem;
+  z-index: 2;
+  opacity: 0.9;
+  animation: icon-float 3s ease-in-out infinite;
+} */
+
+/* Orbiting Particles */
+.loader-orbit {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 1px dashed rgba(155, 121, 82, 0.2);
+  animation: orbit-spin 15s linear infinite;
+  z-index: 0;
+}
+
+.loader-orbit::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 10px var(--color-accent);
+}
+
+/* Text Styling */
+.loader-content {
+  text-align: center;
+  z-index: 2;
+  max-width: 80%;
+}
+
+.loader-title {
+  font-family: var(--font-cursive);
+  font-size: 2rem;
+  color: var(--color-text);
+  margin-bottom: var(--spacing-xs);
+  font-weight: 500;
+}
+
+.loader-subtitle {
+  font-family: var(--font-handwriting); /* or sans-serif depending on preference, handwriting fits 'metaphor' better */
+  font-size: 1.1rem;
+  color: var(--color-text-light);
+  font-style: italic;
+  min-height: 1.5em; /* Prevent layout shift */
+  animation: text-fade 0.5s ease-in-out;
+}
+
+/* Animations */
+@keyframes blob-morph {
+  0% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
+  33% { border-radius: 70% 30% 30% 70% / 60% 40% 60% 40%; }
+  66% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; }
+  100% { border-radius: 50% 50% 20% 80% / 25% 80% 20% 75%; }
+}
+
+@keyframes blob-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 10px 40px -10px var(--color-accent); }
+  50% { transform: scale(1.05); box-shadow: 0 20px 60px -15px var(--color-accent); }
+}
+
+@keyframes icon-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes orbit-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes text-fade {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}

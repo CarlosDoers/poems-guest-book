@@ -1,0 +1,154 @@
+.writing-canvas-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 100%; /* Fill available width */
+  flex-grow: 1; /* Key to filling vertical space */
+  justify-content: center;
+  min-height: 0; 
+  /* Prevent selecting UI elements (buttons/text) while drawing violently */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.canvas-paper {
+  position: relative;
+  width: 100%;
+  height: 100%; /* Fill the container */
+  min-height: 350px; /* Minimum safety height */
+  /* Organic paper style */
+  background: var(--color-paper);
+  /* Subtle irregular corners */
+  border-radius: 2px 8px 4px 12px / 8px 4px 12px 2px;
+  
+  /* Multi-layered shadow for depth */
+  box-shadow: 
+    0 2px 4px rgba(43, 37, 32, 0.05),
+    0 15px 40px -12px rgba(43, 37, 32, 0.2);
+    
+  border: 1px solid rgba(155, 121, 82, 0.15);
+  
+  overflow: hidden;
+  cursor: crosshair;
+  
+  /* CRITICAL: Disable all system gestures for drawing */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none; /* Safari */
+  -webkit-touch-callout: none; /* Disable long-press menu */
+  -webkit-tap-highlight-color: transparent; /* Disable tap highlight */
+  
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+/* Subtle paper texture */
+.paper-texture {
+  position: absolute;
+  inset: 0;
+  /* Grainy texture using noise - simulated with gradients */
+  background-image: 
+    /* Paper Grain */
+    radial-gradient(circle at 10% 20%, rgba(0,0,0,0.02) 1px, transparent 1px),
+    radial-gradient(circle at 90% 80%, rgba(0,0,0,0.02) 1px, transparent 1px),
+    /* Soft lighting */
+    linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0.02) 100%);
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* Ruled lines effect (disabled) */
+.canvas-paper::before {
+  content: '';
+  display: none;
+}
+
+.writing-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.canvas-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+}
+
+.canvas-placeholder span {
+  font-family: var(--font-handwriting);
+  font-size: 1.3rem;
+  font-style: italic;
+  color: var(--color-accent-light);
+  opacity: 0.7;
+}
+
+/* Decorative corners - Sketchbook style */
+.canvas-paper::after {
+  content: '';
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  bottom: 15px;
+  border: 1px dashed rgba(155, 121, 82, 0.2); /* Dashed for creative feel */
+  border-radius: inherit; /* Follow organic shape */
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+/* Hover effect */
+.canvas-paper:hover {
+  box-shadow: 
+    0 5px 15px rgba(43, 37, 32, 0.08),
+    0 20px 50px -10px rgba(43, 37, 32, 0.25);
+  border-color: rgba(155, 121, 82, 0.3);
+}
+
+/* Focus state for accessibility */
+.writing-canvas:focus {
+  outline: none;
+}
+
+.canvas-paper:focus-within {
+  box-shadow: 
+    0 5px 20px rgba(155, 121, 82, 0.15),
+    0 20px 50px -10px rgba(155, 121, 82, 0.25);
+  border-color: var(--color-accent);
+}
+
+/* Tablet-specific styles */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .canvas-paper {
+    /* Remove aspect ratio so it can stretch */
+    aspect-ratio: auto;
+    height: 100%;
+  }
+  
+  .canvas-placeholder span {
+    font-size: 2rem;
+  }
+}
+
+/* Large tablet / landscape */
+@media (min-width: 1024px) {
+  .writing-canvas-container {
+    max-width: 100%;
+    /* Ensure it takes full height on large screens too */
+    height: 85%;
+  }
+}
+
+/* Add spacing to button group inside canvas container */
+.writing-canvas-container .button-group {
+  margin-top: var(--spacing-md);
+  /* Ensure buttons are above the iOS home bar */
+  margin-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 10px));
+  flex-shrink: 0;
+}

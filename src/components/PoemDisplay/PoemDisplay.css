@@ -1,0 +1,231 @@
+/* CSS for smooth line reveal */
+
+.poem-display {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-grow: 1;
+  width: 100%;
+  max-width: 700px;
+  height: auto;
+  padding: var(--spacing-lg);
+  margin: auto;
+}
+
+.poem-container {
+  position: relative;
+  z-index: 1;
+  background: var(--color-paper);
+  padding: var(--spacing-lg) var(--spacing-lg);
+  
+  /* Organic borders - softly irregular */
+  border-radius: 3px 255px 4px 25px / 255px 5px 225px 3px; /* Sketchy but subtle on large scale */
+  /* Fallback for safer feel if the above is too much, let's aim for 'Handmade Card' feel */
+  border-radius: 4px 60px 4px 12px / 12px 4px 60px 4px; /* More controlled asymmetry */
+
+  /* Elegant layering shadow */
+  box-shadow: 
+    0 2px 5px rgba(43, 37, 32, 0.03),
+    0 25px 60px -10px rgba(43, 37, 32, 0.25);
+    
+  border: 1px solid rgba(155, 121, 82, 0.1);
+  
+  text-align: center;
+  width: 100%;
+  /* Use a reasonable min-height but allow growing */
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--spacing-lg); /* Space for scroll */
+  
+  /* Paper texture overlay */
+  background-image: linear-gradient(135deg, rgba(255,255,255,0.7), rgba(255,255,255,0.2) 60%, rgba(240, 235, 230, 0.2) 100%);
+  
+  /* Entrance Animation */
+  animation: paper-entrance 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  transform-origin: 50% 100%; /* Pivot from bottom like holding paper up */
+}
+
+@keyframes paper-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96) rotate(-1deg);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+    filter: blur(0);
+  }
+}
+
+.poem-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: var(--spacing-sm); /* Increased gap for better readability */
+}
+
+/* Line Animation Styles */
+.poem-text-line {
+  font-family: var(--font-handwriting);
+  font-size: 2rem;
+  font-weight: 200;
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--color-ink);
+  text-align: center;
+  margin: 0.5rem 0;
+  letter-spacing: 0.01em;
+}
+
+/* Individual word animation - Enhanced for organic flow */
+.poem-word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(15px) scale(0.95);
+  filter: blur(6px);
+  will-change: opacity, transform, filter;
+  transition: opacity 1s ease-out, transform 1s cubic-bezier(0.2, 0.65, 0.3, 0.9), filter 1s ease-out;
+  margin-right: 0.25em; /* Essential spacing between words */
+}
+
+.poem-word:last-child {
+  margin-right: 0;
+}
+
+.poem-word.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+.poem-text-line.visible {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+/* Rest of decorative styles */
+.flourish {
+  width: 100%;
+  max-width: 250px;
+  margin: 0 auto;
+  color: var(--color-accent-light);
+  height: 30px;
+  transition: opacity 1s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.flourish-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 1px 1px rgba(255,255,255,0.8));
+}
+
+.flourish-top {
+  margin-bottom: var(--spacing-md);
+}
+
+.flourish-bottom {
+  margin-top: auto;
+  margin-top: var(--spacing-md);
+  opacity: 0;
+}
+
+.flourish-bottom.visible {
+  opacity: 1;
+}
+
+.flourish-bottom.hidden {
+  opacity: 0;
+}
+
+.poem-emotion {
+  margin-bottom: var(--spacing-md);
+}
+
+.emotion-label {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-xs);
+}
+
+.emotion-word {
+  display: block;
+  font-family: var(--font-cursive);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 3.2rem;
+  color: var(--color-accent);
+  letter-spacing: 0.03em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* animation: float 3s ease-in-out infinite; */
+}
+
+.poem-actions-external {
+  margin-top: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity var(--transition-slow) ease, transform var(--transition-slow) ease;
+  pointer-events: none;
+}
+
+.poem-actions-external.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Audio Controls */
+.audio-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.audio-error {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--color-error);
+  padding: var(--spacing-xs);
+}
+
+/* Background Illustration */
+.illustration-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; 
+  opacity: 0;
+  border-radius: inherit; /* Inherit the organic shape from parent */
+  pointer-events: none;
+  mix-blend-mode: multiply; 
+  z-index: -1; 
+  transition: opacity 2s ease, transform 3s ease-out; /* Smooth transition */
+}
+
+.illustration-bg.loaded {
+  opacity: 0.30; /* Target low opacity */
+  transform: scale(1);
+}

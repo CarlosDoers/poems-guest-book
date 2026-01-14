@@ -1,0 +1,28 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Organic background shape (Slightly irregular squircle) -->
+  <path d="M256 32C132.288 32 32 132.288 32 256C32 379.712 132.288 480 256 480C379.712 480 480 379.712 480 256C480 132.288 379.712 32 256 32Z" fill="#FAF8F5"/>
+  <path d="M256 42C140 42 42 140 42 256C42 372 140 470 256 470C372 470 470 372 470 256C470 140 372 42 256 42Z" stroke="#9B7952" stroke-width="12" stroke-opacity="0.2"/>
+  
+  <!-- Quill / Feather Icon -->
+  <defs>
+    <linearGradient id="quillGrad" x1="100" y1="100" x2="400" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D4A149"/> 
+      <stop offset="100%" stop-color="#9B7952"/>
+    </linearGradient>
+    <filter id="dropShadow" x="0" y="0" width="520" height="520" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#6D5339" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#dropShadow)">
+    <!-- Feather spine -->
+    <path d="M370 110C370 110 300 180 200 320L180 350L210 330C350 230 420 160 420 160" stroke="url(#quillGrad)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Feather body left -->
+    <path d="M370 110C340 120 250 180 200 320" stroke="url(#quillGrad)" stroke-width="12" stroke-opacity="0.6"/>
+    <!-- Feather body right -->
+    <path d="M420 160C410 130 350 40 210 330" stroke="url(#quillGrad)" stroke-width="8" stroke-opacity="0.4"/>
+    
+    <!-- Ink Nib -->
+    <path d="M180 350 L 150 390 L 190 360" fill="#2B2520"/>
+  </g>
+</svg>
