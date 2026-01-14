@@ -166,11 +166,22 @@ function RippleBackground({ enabled }) {
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
     video.setAttribute('muted', '');
-    video.setAttribute('autoplay', '');
     
     video.muted = true;
     video.playsInline = true;
     video.autoplay = true;
+
+    // iOS Safari fix: Video element needs to be in the DOM and visible (even if 1px transparent)
+    // for the stream to update reliably as a texture
+    video.style.position = 'fixed';
+    video.style.top = '0';
+    video.style.left = '0';
+    video.style.width = '1px';
+    video.style.height = '1px';
+    video.style.opacity = '0.01'; // Not 0 to avoid being culled
+    video.style.pointerEvents = 'none';
+    video.style.zIndex = '-1';
+    document.body.appendChild(video);
 
     const tex = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
@@ -197,9 +208,31 @@ function RippleBackground({ enabled }) {
            },
           audio: false
         });
+        
         video.srcObject = stream;
-        await video.play();
-        videoReady = true;
+        
+        // Ensure dimensions are set for iOS
+        video.onloadedmetadata = () => {
+             video.width = video.videoWidth;
+             video.height = video.videoHeight;
+        };
+
+        try {
+            await video.play();
+            videoReady = true;
+        } catch (playError) {
+            console.warn("Autoplay failed/blocked:", playError);
+            // Fallback for iOS interaction requirement
+            const enableVideo = () => {
+                video.play().then(() => {
+                    videoReady = true;
+                    document.removeEventListener('touchstart', enableVideo);
+                    document.removeEventListener('click', enableVideo);
+                });
+            };
+            document.addEventListener('touchstart', enableVideo);
+            document.addEventListener('click', enableVideo);
+        }
       } catch (e) {
         console.error('Camera/Video error:', e);
         videoReady = false;
@@ -269,6 +302,9 @@ function RippleBackground({ enabled }) {
       window.removeEventListener('pointerup', onPointerUp);
       if (stream) {
         for (const track of stream.getTracks()) track.stop();
+      }
+      if (video.parentNode) {
+          document.body.removeChild(video);
       }
       gl.deleteTexture(tex);
       gl.deleteBuffer(buffer);
