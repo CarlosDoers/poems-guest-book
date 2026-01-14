@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useState, useCallback, useEffect, lazy, Suspense, useRef } from 'react';
 import WritingCanvas from './components/WritingCanvas/WritingCanvas';
 import Loader from './components/Loader/Loader';
 import { generatePoem, recognizeEmotionFromImage, generateIllustration, isOpenAIConfigured } from './services/ai';
@@ -17,8 +17,273 @@ const STATES = {
   ERROR: 'error'
 };
 
+const WRITING_STAGES = {
+  INTRO: 'intro',
+  CANVAS: 'canvas'
+};
+
+function RippleBackground({ enabled }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const canvas = canvasRef.current;
+    const gl =
+      canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false, antialias: false }) ||
+      canvas.getContext('experimental-webgl', { alpha: true, premultipliedAlpha: false, antialias: false });
+
+    if (!gl) return;
+
+    const vertSrc = `
+      attribute vec2 aPos;
+      void main() {
+        gl_Position = vec4(aPos, 0.0, 1.0);
+      }
+    `;
+
+    const fragSrc = `
+      precision highp float;
+
+      uniform vec2 uResolution;
+      uniform float uTime;
+      uniform vec4 uMouse;
+      uniform sampler2D uChannel0;
+      uniform float uVideoReady;
+
+      vec2 paramsDefault() {
+        return vec2(2.5, 10.0);
+      }
+
+      float wave(vec2 pos, float t, float freq, float numWaves, vec2 center) {
+        float d = length(pos - center);
+        d = log(1.0 + exp(d));
+        return 1.0 / (1.0 + 20.0 * d * d) * sin(6.2831853 * (-numWaves * d + t * freq));
+      }
+
+      float height(vec2 pos, float t, vec2 params) {
+        float w = wave(pos, t, params.x, params.y, vec2(0.5, -0.5));
+        w += wave(pos, t, params.x, params.y, -vec2(0.5, -0.5));
+        return w;
+      }
+
+      vec2 normalV(vec2 pos, float t, vec2 params) {
+        float e = 0.01;
+        return vec2(
+          height(pos - vec2(e, 0.0), t, params) - height(pos, t, params),
+          height(pos - vec2(0.0, e), t, params) - height(pos, t, params)
+        );
+      }
+
+      vec3 baseColor(vec2 uv) {
+        vec2 p = uv * 2.0 - 1.0;
+        float r = length(p);
+        float a = atan(p.y, p.x);
+        float g1 = 0.55 + 0.45 * sin(3.0 * a + 2.2 * uTime + r * 4.0);
+        float g2 = 0.55 + 0.45 * sin(2.0 * a - 1.6 * uTime + r * 3.0);
+        vec3 c1 = vec3(0.02, 0.45, 0.62);
+        vec3 c2 = vec3(0.08, 0.85, 0.92);
+        vec3 col = mix(c1, c2, 0.5 + 0.5 * sin((g1 + g2) * 1.2));
+        float v = smoothstep(1.1, 0.2, r);
+        return col * (0.35 + 0.65 * v);
+      }
+
+      void main() {
+        vec2 fragCoord = gl_FragCoord.xy;
+        vec2 uv = fragCoord / uResolution.xy;
+        vec2 uvn = 2.0 * uv - vec2(1.0);
+
+        vec2 params = paramsDefault();
+        if (uMouse.z > 0.0) {
+          params = 2.0 * params * (uMouse.xy / uResolution.xy);
+          params.x = max(params.x, 0.2);
+          params.y = max(params.y, 0.5);
+        }
+
+        vec2 n = normalV(uvn, uTime, params);
+        vec2 duv = n * 0.085;
+
+        vec2 suv = vec2(1.0 - (uv.x + duv.x), uv.y + duv.y);
+        vec2 texUv = clamp(suv, 0.0, 1.0);
+        vec3 camCol = texture2D(uChannel0, texUv).rgb;
+        vec3 col = mix(baseColor(fract(suv)), camCol, step(0.5, uVideoReady));
+        float vignette = smoothstep(1.25, 0.2, length(uvn));
+        col *= 0.75 + 0.25 * vignette;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `;
+
+    const compile = (type, source) => {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    };
+
+    const vs = compile(gl.VERTEX_SHADER, vertSrc);
+    const fs = compile(gl.FRAGMENT_SHADER, fragSrc);
+    if (!vs || !fs) return;
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      gl.deleteProgram(program);
+      return;
+    }
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+      gl.STATIC_DRAW
+    );
+
+    gl.useProgram(program);
+    const aPos = gl.getAttribLocation(program, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    const uResolution = gl.getUniformLocation(program, 'uResolution');
+    const uTime = gl.getUniformLocation(program, 'uTime');
+    const uMouse = gl.getUniformLocation(program, 'uMouse');
+    const uChannel0 = gl.getUniformLocation(program, 'uChannel0');
+    const uVideoReady = gl.getUniformLocation(program, 'uVideoReady');
+
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    const video = document.createElement('video');
+    
+    // Critical for iOS
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.setAttribute('muted', '');
+    video.setAttribute('autoplay', '');
+    
+    video.muted = true;
+    video.playsInline = true;
+    video.autoplay = true;
+
+    const tex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.uniform1i(uChannel0, 0);
+
+    let stream = null;
+    let videoReady = false;
+    const startCamera = async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        console.warn('Camera API not supported or not secure context');
+        return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+           },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        videoReady = true;
+      } catch (e) {
+        console.error('Camera/Video error:', e);
+        videoReady = false;
+      }
+    };
+    startCamera();
+
+    const mouse = { x: 0, y: 0, down: 0 };
+    const onPointerMove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = (e.clientX - rect.left) * (window.devicePixelRatio || 1);
+      mouse.y = (rect.bottom - e.clientY) * (window.devicePixelRatio || 1);
+    };
+    const onPointerDown = () => {
+      mouse.down = 1;
+    };
+    const onPointerUp = () => {
+      mouse.down = 0;
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
+
+    const resize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.floor(window.innerWidth * dpr));
+      const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        gl.viewport(0, 0, w, h);
+      }
+      gl.uniform2f(uResolution, canvas.width, canvas.height);
+    };
+
+    resize();
+    window.addEventListener('resize', resize, { passive: true });
+
+    let raf = 0;
+    const start = performance.now();
+    const render = () => {
+      const now = performance.now();
+      const t = (now - start) / 1000;
+      gl.uniform1f(uTime, t);
+      gl.uniform4f(uMouse, mouse.x, mouse.y, mouse.down, 0);
+      gl.uniform1f(uVideoReady, videoReady ? 1 : 0);
+
+      if (videoReady && video.readyState >= 2) {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+      }
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      raf = requestAnimationFrame(render);
+    };
+
+    raf = requestAnimationFrame(render);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
+      if (stream) {
+        for (const track of stream.getTracks()) track.stop();
+      }
+      gl.deleteTexture(tex);
+      gl.deleteBuffer(buffer);
+      gl.deleteProgram(program);
+    };
+  }, [enabled]);
+
+  if (!enabled) return null;
+
+  return <canvas ref={canvasRef} className="ripple-bg" aria-hidden="true" />;
+}
+
 export default function App() {
   const [appState, setAppState] = useState(STATES.WRITING);
+  const [writingStage, setWritingStage] = useState(WRITING_STAGES.INTRO);
   const [poem, setPoem] = useState(null);
   const [illustration, setIllustration] = useState(null);
   const [emotion, setEmotion] = useState('');
@@ -165,12 +430,17 @@ export default function App() {
 
   const handleNewPoem = useCallback(() => {
     setAppState(STATES.WRITING);
+    setWritingStage(WRITING_STAGES.INTRO);
     setPoem(null);
     setIllustration(null);
     setEmotion('');
     setPoemId(null);
     setExistingAudioUrl(null);
     setError(null);
+  }, []);
+
+  const handleStartWriting = useCallback(() => {
+    setWritingStage(WRITING_STAGES.CANVAS);
   }, []);
 
   const handleSelectHistoryPoem = useCallback((poemItem) => {
@@ -183,10 +453,15 @@ export default function App() {
     setAppState(STATES.POEM);
   }, []);
 
+  const isWritingIntro = appState === STATES.WRITING && writingStage === WRITING_STAGES.INTRO;
+  const isWritingCanvas = appState === STATES.WRITING && writingStage === WRITING_STAGES.CANVAS;
+  const isFullScreenWriting = isWritingIntro || isWritingCanvas;
+
   return (
-    <div className={`app ${appState === STATES.POEM ? 'app-scrollable' : 'app-fixed'}`}>
+    <div className={`app ${appState === STATES.POEM ? 'app-scrollable' : 'app-fixed'} ${isFullScreenWriting ? 'app-fullscreen' : ''}`}>
+      <RippleBackground enabled={isFullScreenWriting} />
       {/* Configuration Warnings */}
-      {configWarnings.length > 0 && appState === STATES.WRITING && (
+      {configWarnings.length > 0 && appState === STATES.WRITING && !isFullScreenWriting && (
         <div className="config-warnings">
           {configWarnings.map((warning, i) => (
             <p key={i} className="config-warning">{warning}</p>
@@ -195,17 +470,26 @@ export default function App() {
       )}
 
       {/* Writing State */}
-      {appState === STATES.WRITING && (
-        <>
-          <h1 className="title">Emotional guest book</h1>
-          <p className="subtitle">
-            Escribe una emoción y recibe un poema único
-          </p>
-          <WritingCanvas 
-            onSubmit={handleCanvasSubmit}
-            isProcessing={false} 
-          />
-        </>
+      {isWritingIntro && (
+        <div
+          className="intro-screen"
+          role="button"
+          tabIndex={0}
+          onPointerUp={handleStartWriting}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleStartWriting();
+          }}
+        >
+          <div className="intro-title">Eres un poema</div>
+          <div className="intro-cta">Pulsa para comenzar</div>
+        </div>
+      )}
+
+      {isWritingCanvas && (
+        <div className="writing-screen">
+          <div className="writing-hint">Usa el boli para escribir una emoción</div>
+          <WritingCanvas onSubmit={handleCanvasSubmit} isProcessing={false} fullScreen />
+        </div>
       )}
 
       {/* Processing State */}
@@ -230,7 +514,7 @@ export default function App() {
       )}
 
       {/* History Carousel - Visible in Writing and Poem states */}
-      {(appState === STATES.WRITING || appState === STATES.POEM) && (recentPoems.length > 0 || isPoemsLoading) && (
+      {appState === STATES.POEM && (recentPoems.length > 0 || isPoemsLoading) && (
         <Suspense fallback={null}>
           <PoemCarousel 
             poems={recentPoems} 

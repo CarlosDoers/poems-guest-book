@@ -12,6 +12,12 @@
   -webkit-user-select: none;
 }
 
+.writing-canvas-container.fullscreen {
+  position: relative;
+  height: 100%;
+  justify-content: stretch;
+}
+
 .canvas-paper {
   position: relative;
   width: 100%;
@@ -40,6 +46,30 @@
   -webkit-tap-highlight-color: transparent; /* Disable tap highlight */
   
   transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.writing-canvas-container.fullscreen .canvas-paper {
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+}
+
+.writing-canvas-container.fullscreen .paper-texture {
+  display: none;
+}
+
+.writing-canvas-container.fullscreen .canvas-paper::after {
+  display: none;
+}
+
+.writing-canvas-container.fullscreen .canvas-paper:hover {
+  box-shadow: none;
+  border-color: transparent;
+}
+
+.writing-canvas-container.fullscreen .canvas-placeholder span {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Subtle paper texture */
@@ -151,4 +181,17 @@
   /* Ensure buttons are above the iOS home bar */
   margin-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 10px));
   flex-shrink: 0;
+}
+
+.writing-canvas-container.fullscreen .button-group {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom, 10px));
+  margin: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.28);
+  padding: 0.4rem 0.6rem;
+  border-radius: 999px;
+  backdrop-filter: blur(10px);
 }
