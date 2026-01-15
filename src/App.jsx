@@ -22,7 +22,55 @@ const WRITING_STAGES = {
   CANVAS: 'canvas'
 };
 
-function RippleBackground({ enabled }) {
+// -------------------------------------------------------------
+// CONFIGURACIÓN DE EFECTOS VISUALES (SHADER DE AGUA)
+// Modifica estos valores para personalizar el aspecto
+// -------------------------------------------------------------
+const SHADER_CONFIG = {
+  // Movimiento base del agua
+  baseWaveSpeed: 1.2,       // Velocidad mucho más suave
+  waveAmplitude: 2.0,       // Altura general de las olas (1.0 = normal, 2.0 = fuerte)
+  waveFrequency: 7.0,       // Frecuencia/Densidad de olas (más alto = más ondas juntas)
+  
+  // Interacción (Dibujo/Lápiz)
+  interactionRadius: 0.5,   // Radio de efecto del pincel (0.0 a 1.0)
+  interactionStrength: 0.5, // Intensidad de la onda al tocar (altura)
+  interactionFreq: 20.0,    // Frecuencia de las ondas del pincel (más alto = más ondas juntas)
+  interactionSpeed: 8.0,    // Velocidad a la que se mueven las ondas del pincel
+
+  // Distorsión visual (Refracción)
+  refractionStrength: 0.075, // Cuánto distorsiona la imagen de fondo (0.0 = sin distorsión)
+
+  // Color y Atmósfera
+  waterTint: [0.0, 0.2, 0.5],  // Color del tinte azul (R, G, B) - Más profundo
+  tintIntensity: 0.55,         // Intensidad de la mezcla
+  colorBalance: [0.8, 0.95, 1.3], // Menos rojo, más azul para efecto subacuático
+  contrast: 1.8,               // Aumentar contraste para sombras marcadas
+  brightness: 0.7,             // Ligeramente más oscuro
+  
+  // Textura y Grano
+  noiseIntensity: 0.2,        // Intensidad del grano/ruido (0.0 = imagen limpia)
+
+  // Iluminación (Reflejos Especulares)
+  specularIntensity: 1.0,      // Intensidad de los reflejos de luz (0.0 = mate, >1.0 = muy brillante)
+  specularShininess: 60.0,     // "Dureza" del brillo (más alto = punto de luz más pequeño y concentrado)
+  lightDirection: [-0.5, 0.5, 1.0], // Dirección de la luz virtual [x, y, z]
+
+  // Cámara
+  cameraZoom: 1.0,             // Zoom de la cámara (1.0 = normal, <1.0 = zoom in/cerca, >1.0 = alejar)
+
+  // Lluvia (Gotas aleatorias)
+  rainIntensity: 0.6,          // Intensidad de las gotas (0.0 = desactivado)
+  rainScale: 2.0,              // Escala de la cuadrícula de lluvia (más alto = gotas más pequeñas y frecuentes en pantalla)
+  rainSpeed: 1.0,              // Velocidad del ciclo de lluvia
+
+  // Enfoque (Blur Radial / Tilt-Shift)
+  blurStrength: 3.0,           // Cantidad de desenfoque en los bordes
+  focusRadius: 0.4,            // Tamaño del área central nítida (0.0 a 1.0)
+  baseBlur: 0.8                // Desenfoque base en toda la imagen (Efecto difuso/reflejo)
+};
+
+function RippleBackground({ enabled, sharedPointerRef }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -46,24 +94,87 @@ function RippleBackground({ enabled }) {
       precision highp float;
 
       uniform vec2 uResolution;
+      uniform vec2 uVideoRes; 
       uniform float uTime;
       uniform vec4 uMouse;
       uniform sampler2D uChannel0;
       uniform float uVideoReady;
 
       vec2 paramsDefault() {
-        return vec2(2.5, 10.0);
+        return vec2(${SHADER_CONFIG.baseWaveSpeed.toFixed(1)}, 1.0);
       }
 
-      float wave(vec2 pos, float t, float freq, float numWaves, vec2 center) {
-        float d = length(pos - center);
-        d = log(1.0 + exp(d));
-        return 1.0 / (1.0 + 20.0 * d * d) * sin(6.2831853 * (-numWaves * d + t * freq));
+      // Simple pseudo-random function for grain/noise
+      float rand(vec2 co) {
+        return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      }
+
+      float rain(vec2 pos, float t) {
+          float scale = ${SHADER_CONFIG.rainScale.toFixed(1)};
+          vec2 id = floor(pos * scale);
+          vec2 f = fract(pos * scale) - 0.5;
+          
+          float n = rand(id);
+          float t_adj = t * ${SHADER_CONFIG.rainSpeed.toFixed(1)} + n * 100.0;
+          float period = 4.0 + n * 10.0; // Random period
+          float life = mod(t_adj, period);
+          
+          float r = 0.0;
+          if (life < 1.5) {
+               // Random position for this cycle
+               float cycleIdx = floor(t_adj / period);
+               float rndStart = rand(id + cycleIdx);
+               vec2 offset = vec2(
+                   (rndStart - 0.5) * 0.6,
+                   (rand(id + cycleIdx + 0.1) - 0.5) * 0.6
+               );
+               
+               // Variation in size (max 0.4, min 0.15) and intensity
+               float dropRnd = fract(rndStart * 123.45); 
+               float size = 0.15 + 0.25 * dropRnd;
+               float intensity = 0.5 + 0.5 * dropRnd; // Smaller drops are also weaker
+
+               float d = length(f - offset);
+               float mask = smoothstep(size, 0.0, d);
+               r = sin(25.0 * d - 10.0 * life) * exp(-life * 2.0) * mask * intensity;
+          }
+          return r * ${SHADER_CONFIG.rainIntensity.toFixed(1)};
       }
 
       float height(vec2 pos, float t, vec2 params) {
-        float w = wave(pos, t, params.x, params.y, vec2(0.5, -0.5));
-        w += wave(pos, t, params.x, params.y, -vec2(0.5, -0.5));
+        float speed = params.x;
+        float amp = ${SHADER_CONFIG.waveAmplitude.toFixed(1)};
+        float freq = ${SHADER_CONFIG.waveFrequency.toFixed(1)};
+        float w = 0.0;
+        
+        // Sum of sine waves with turbulence to create randomness
+        // Layer 1: Base swell (large, slow)
+        w += 0.50 * amp * sin(dot(pos, vec2(0.8, 0.5)) * freq + t * speed);
+        
+        // Layer 2: Cross waves (medium)
+        w += 0.35 * amp * sin(dot(pos, vec2(-0.7, 0.7)) * (freq * 1.4) + t * speed * 1.1);
+        
+        // Layer 3: Turbulence (irregular, breaking linearity)
+        // Using coordinate distortion (sin inside sin) to simulate random liquid motion
+        float q = freq * 2.2;
+        w += 0.15 * amp * sin(pos.x * q + t * speed * 1.5 + 2.0 * sin(pos.y * q * 0.4));
+        w += 0.12 * amp * sin(pos.y * q * 1.3 + t * speed * 1.6 + 2.0 * sin(pos.x * q * 0.5));
+
+        // Raindrops
+        if (${SHADER_CONFIG.rainIntensity.toFixed(1)} > 0.0) {
+             w += rain(pos, t);
+        }
+
+        // Interaction ripple
+        if (uMouse.z > 0.0) {
+           vec2 m = (uMouse.xy / uResolution.xy) * 2.0 - 1.0;
+           float d = length(pos - m);
+           // Localized distortion based on distance to pencil
+           float mask = smoothstep(${SHADER_CONFIG.interactionRadius.toFixed(1)}, 0.0, d); 
+           // Add high frequency ripples near pointer
+           w += ${SHADER_CONFIG.interactionStrength.toFixed(1)} * sin(${SHADER_CONFIG.interactionFreq.toFixed(1)} * d - ${SHADER_CONFIG.interactionSpeed.toFixed(1)} * t) * mask;
+        }
+        
         return w;
       }
 
@@ -94,19 +205,99 @@ function RippleBackground({ enabled }) {
         vec2 uvn = 2.0 * uv - vec2(1.0);
 
         vec2 params = paramsDefault();
-        if (uMouse.z > 0.0) {
-          params = 2.0 * params * (uMouse.xy / uResolution.xy);
-          params.x = max(params.x, 0.2);
-          params.y = max(params.y, 0.5);
-        }
+        // Global mouse interaction removed to keep effect local
+        // if (uMouse.z > 0.0) { ... }
 
         vec2 n = normalV(uvn, uTime, params);
-        vec2 duv = n * 0.085;
+        vec2 duv = n * ${SHADER_CONFIG.refractionStrength.toFixed(3)};
 
         vec2 suv = vec2(1.0 - (uv.x + duv.x), uv.y + duv.y);
-        vec2 texUv = clamp(suv, 0.0, 1.0);
-        vec3 camCol = texture2D(uChannel0, texUv).rgb;
+        
+        // --- Aspect Ratio Correction & Zoom (Cover Mode) ---
+        float screenAspect = uResolution.x / uResolution.y;
+        float videoAspect = uVideoReady > 0.5 ? uVideoRes.x / uVideoRes.y : 1.77; 
+        
+        vec2 texScale = vec2(1.0);
+        if (screenAspect > videoAspect) {
+             // Screen is wider than video, crop top/bottom (scale Y)
+             texScale.y = videoAspect / screenAspect;
+        } else {
+             // Screen is taller than video, crop sides (scale X)
+             texScale.x = screenAspect / videoAspect;
+        }
+        
+        // Apply Zoom (Manual correction for wide angle lens)
+        texScale *= ${SHADER_CONFIG.cameraZoom.toFixed(2)};
+
+        // Transform simplified UVs for texture sampling
+        // We use 'suv' which already includes water distortion
+        vec2 texUv = (suv - 0.5) * texScale + 0.5;
+        // ---------------------------------------------------
+
+        texUv = clamp(texUv, 0.0, 1.0); // Clamp to avoid repeating/glitching edges
+        
+        // --- Radial Blur / Focus Effect ---
+        float distToCenter = length(uvn);
+        // Calculate how blurry this pixel should be (0.0 = sharp, 1.0 = blurry)
+        float radialBlur = smoothstep(${SHADER_CONFIG.focusRadius.toFixed(2)}, 1.2, distToCenter);
+        
+        // Combine base blur (center/reflection look) with radial blur (edges)
+        float blurStr = ${SHADER_CONFIG.baseBlur.toFixed(1)} + (radialBlur * ${SHADER_CONFIG.blurStrength.toFixed(1)});
+        
+        vec3 camCol;
+        
+        if (blurStr > 0.01) {
+             // 9-tap Blur (Center + 8 surrounding)
+             vec3 acc = texture2D(uChannel0, texUv).rgb * 4.0; // Center weight
+             float off = 0.003 * blurStr; // Offset spreads with blur strength
+             
+             acc += texture2D(uChannel0, clamp(texUv + vec2(off, 0.0), 0.0, 1.0)).rgb;
+             acc += texture2D(uChannel0, clamp(texUv + vec2(-off, 0.0), 0.0, 1.0)).rgb;
+             acc += texture2D(uChannel0, clamp(texUv + vec2(0.0, off), 0.0, 1.0)).rgb;
+             acc += texture2D(uChannel0, clamp(texUv + vec2(0.0, -off), 0.0, 1.0)).rgb;
+             
+             // Diagonals
+             acc += texture2D(uChannel0, clamp(texUv + vec2(off, off), 0.0, 1.0)).rgb;
+             acc += texture2D(uChannel0, clamp(texUv + vec2(-off, off), 0.0, 1.0)).rgb;
+             acc += texture2D(uChannel0, clamp(texUv + vec2(off, -off), 0.0, 1.0)).rgb;
+             acc += texture2D(uChannel0, clamp(texUv + vec2(-off, -off), 0.0, 1.0)).rgb;
+             
+             camCol = acc / 12.0; // Total weight (4 + 8)
+        } else {
+             camCol = texture2D(uChannel0, texUv).rgb;
+        }
+        
+        // --- Underwater Color Grading ---
+        // 1. Contrast & Brightness (Accentuates shadows)
+        camCol = (camCol - 0.5) * ${SHADER_CONFIG.contrast.toFixed(1)} + 0.6;
+        camCol += (${SHADER_CONFIG.brightness.toFixed(1)} - 1.0);
+        
+        // 2. Desaturate Red channel (Deep water absorbs red light first)
+        camCol.r *= 0.8; 
+
+        // ----------------------------------
+        
+        // Apply blue water filter
+        vec3 waterBlue = vec3(${SHADER_CONFIG.waterTint.join(', ')});
+        camCol = mix(camCol, waterBlue, ${SHADER_CONFIG.tintIntensity.toFixed(1)}); // Mix with blue
+        
+        // Add mystical grain/noise
+        float noise = rand(uv + uTime * 0.1) * ${SHADER_CONFIG.noiseIntensity.toFixed(2)};
+        camCol += vec3(noise);
+        
+        camCol *= vec3(${SHADER_CONFIG.colorBalance.join(', ')}); // Cool balance
+        
         vec3 col = mix(baseColor(fract(suv)), camCol, step(0.5, uVideoReady));
+
+        // Add Specular Highlights (Water surface reflection)
+        // Convert 2D gradient normal to 3D surface normal
+        vec3 normal3D = normalize(vec3(-n.x * 5.0, -n.y * 5.0, 1.0));
+        vec3 lightDir = normalize(vec3(${SHADER_CONFIG.lightDirection.join(', ')}));
+        vec3 viewDir = vec3(0.0, 0.0, 1.0); // Looking straight down
+        vec3 reflectDir = reflect(-lightDir, normal3D);
+        float specular = pow(max(dot(viewDir, reflectDir), 0.0), ${SHADER_CONFIG.specularShininess.toFixed(1)});
+        col += vec3(1.0) * specular * ${SHADER_CONFIG.specularIntensity.toFixed(1)};
+
         float vignette = smoothstep(1.25, 0.2, length(uvn));
         col *= 0.75 + 0.25 * vignette;
 
@@ -154,6 +345,7 @@ function RippleBackground({ enabled }) {
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
     const uResolution = gl.getUniformLocation(program, 'uResolution');
+    const uVideoRes = gl.getUniformLocation(program, 'uVideoRes');
     const uTime = gl.getUniformLocation(program, 'uTime');
     const uMouse = gl.getUniformLocation(program, 'uMouse');
     const uChannel0 = gl.getUniformLocation(program, 'uChannel0');
@@ -240,17 +432,20 @@ function RippleBackground({ enabled }) {
     };
     startCamera();
 
-    const mouse = { x: 0, y: 0, down: 0 };
+    const localMouse = { x: 0, y: 0, down: 0 };
+    const getMouseState = () => sharedPointerRef ? sharedPointerRef.current : localMouse;
+
     const onPointerMove = (e) => {
       const rect = canvas.getBoundingClientRect();
-      mouse.x = (e.clientX - rect.left) * (window.devicePixelRatio || 1);
-      mouse.y = (rect.bottom - e.clientY) * (window.devicePixelRatio || 1);
+      const m = getMouseState();
+      m.x = (e.clientX - rect.left) * (window.devicePixelRatio || 1);
+      m.y = (rect.bottom - e.clientY) * (window.devicePixelRatio || 1);
     };
     const onPointerDown = () => {
-      mouse.down = 1;
+      getMouseState().down = 1;
     };
     const onPointerUp = () => {
-      mouse.down = 0;
+      getMouseState().down = 0;
     };
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
@@ -279,11 +474,13 @@ function RippleBackground({ enabled }) {
     const render = () => {
       const now = performance.now();
       const t = (now - start) / 1000;
+      const m = getMouseState();
       gl.uniform1f(uTime, t);
-      gl.uniform4f(uMouse, mouse.x, mouse.y, mouse.down, 0);
+      gl.uniform4f(uMouse, m.x, m.y, m.down, 0);
       gl.uniform1f(uVideoReady, videoReady ? 1 : 0);
 
       if (videoReady && video.readyState >= 2) {
+        gl.uniform2f(uVideoRes, video.videoWidth || 1280, video.videoHeight || 720);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
@@ -328,6 +525,19 @@ export default function App() {
   const [recentPoems, setRecentPoems] = useState([]);
   const [isPoemsLoading, setIsPoemsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Shared pointer state for water ripple effect
+  const sharedPointerRef = useRef({ x: 0, y: 0, down: 0 });
+
+  const handleStrokeUpdate = useCallback((x, y, isDown) => {
+    if (sharedPointerRef.current) {
+      const dpr = window.devicePixelRatio || 1;
+      // Convert top-left coordinates to bottom-left (GL style) and scale by DPR
+      sharedPointerRef.current.x = x * dpr;
+      sharedPointerRef.current.y = (window.innerHeight - y) * dpr;
+      sharedPointerRef.current.down = isDown ? 1 : 0;
+    }
+  }, []);
 
   // Initialize and Fetch Data
   useEffect(() => {
@@ -491,13 +701,15 @@ export default function App() {
 
   const isWritingIntro = appState === STATES.WRITING && writingStage === WRITING_STAGES.INTRO;
   const isWritingCanvas = appState === STATES.WRITING && writingStage === WRITING_STAGES.CANVAS;
-  const isFullScreenWriting = isWritingIntro || isWritingCanvas;
+  
+  // Enable Ripple/Water effect for all states except Error (optional)
+  const isRippleEnabled = appState !== STATES.ERROR;
 
   return (
-    <div className={`app ${appState === STATES.POEM ? 'app-scrollable' : 'app-fixed'} ${isFullScreenWriting ? 'app-fullscreen' : ''}`}>
-      <RippleBackground enabled={isFullScreenWriting} />
+    <div className={`app ${appState === STATES.POEM ? 'app-scrollable' : 'app-fixed'} ${isRippleEnabled ? 'app-fullscreen' : ''}`}>
+      <RippleBackground enabled={isRippleEnabled} sharedPointerRef={sharedPointerRef} />
       {/* Configuration Warnings */}
-      {configWarnings.length > 0 && appState === STATES.WRITING && !isFullScreenWriting && (
+      {configWarnings.length > 0 && appState === STATES.WRITING && !isRippleEnabled && (
         <div className="config-warnings">
           {configWarnings.map((warning, i) => (
             <p key={i} className="config-warning">{warning}</p>
@@ -524,7 +736,12 @@ export default function App() {
       {isWritingCanvas && (
         <div className="writing-screen">
           <div className="writing-hint">Usa el boli para escribir una emoción</div>
-          <WritingCanvas onSubmit={handleCanvasSubmit} isProcessing={false} fullScreen />
+          <WritingCanvas 
+            onSubmit={handleCanvasSubmit} 
+            isProcessing={false} 
+            fullScreen 
+            onStrokeUpdate={handleStrokeUpdate}
+          />
         </div>
       )}
 

@@ -14,7 +14,7 @@ const debounce = (func, wait) => {
   };
 };
 
-export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false }) {
+export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -100,12 +100,15 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     const { x, y, pressure } = getPointerPosition(e);
     
+    // Update shader
+    if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    
     const ctx = contextRef.current;
     if (!ctx) return; // Safety check: context might not be initialized
     
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineWidth = 2 + pressure * 4;
+    ctx.lineWidth = 4 + pressure * 8; // Más grueso y sensible a la presión
     
     setIsDrawing(true);
     setHasContent(true);
@@ -124,7 +127,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         const events = e.getCoalescedEvents();
         for (const event of events) {
             const { x, y, pressure } = getPointerPosition(event);
-            ctx.lineWidth = 2 + pressure * 4;
+            ctx.lineWidth = 4 + pressure * 8;
             ctx.lineTo(x, y);
             ctx.stroke();
             ctx.beginPath();
@@ -132,7 +135,11 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         }
     } else {
         const { x, y, pressure } = getPointerPosition(e);
-        ctx.lineWidth = 2 + pressure * 4;
+        
+        // Update shader
+        if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+        
+        ctx.lineWidth = 4 + pressure * 8;
         ctx.lineTo(x, y);
         ctx.stroke();
         ctx.beginPath();
@@ -149,8 +156,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     }
     const ctx = contextRef.current;
     if (ctx) ctx.closePath(); // Safety check
+    
+    // Update shader (mouse up)
+    if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
+    
     setIsDrawing(false);
-  }, []);
+  }, [onStrokeUpdate]);
 
   // TOUCH EVENTS - Override pointer events on touch devices for better iOS support
   const handleTouchStart = useCallback((e) => {
@@ -162,12 +173,15 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const touch = e.touches[0];
     const { x, y, pressure } = getTouchPosition(touch);
     
+    // Update shader
+    if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    
     const ctx = contextRef.current;
     if (!ctx) return; // Safety check
     
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineWidth = 2 + pressure * 4;
+    ctx.lineWidth = 4 + pressure * 8;
     
     setIsDrawing(true);
     setHasContent(true);
@@ -183,10 +197,13 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const touch = e.touches[0];
     const { x, y, pressure } = getTouchPosition(touch);
     
+    // Update shader
+    if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    
     const ctx = contextRef.current;
     if (!ctx) return; // Safety check
     
-    ctx.lineWidth = 2 + pressure * 4;
+    ctx.lineWidth = 4 + pressure * 8;
     ctx.lineTo(x, y);
     ctx.stroke();
     ctx.beginPath();
@@ -201,6 +218,10 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     const ctx = contextRef.current;
     if (ctx) ctx.closePath(); // Safety check
+    
+    // Update shader
+    if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
+    
     setIsDrawing(false);
   }, []);
 

@@ -16,36 +16,71 @@
 .poem-container {
   position: relative;
   z-index: 1;
-  background: var(--color-paper);
+  background: rgba(255, 255, 255, 0.15); /* Glassmorphism base */
   padding: var(--spacing-lg) var(--spacing-lg);
+  overflow: hidden; /* For overlay clip */
   
   /* Organic borders - softly irregular */
-  border-radius: 3px 255px 4px 25px / 255px 5px 225px 3px; /* Sketchy but subtle on large scale */
-  /* Fallback for safer feel if the above is too much, let's aim for 'Handmade Card' feel */
-  border-radius: 4px 60px 4px 12px / 12px 4px 60px 4px; /* More controlled asymmetry */
-
+  border-radius: 20px;
+  
+  /* Glass effect */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  
   /* Elegant layering shadow */
   box-shadow: 
-    0 2px 5px rgba(43, 37, 32, 0.03),
-    0 25px 60px -10px rgba(43, 37, 32, 0.25);
+    0 4px 30px rgba(0, 0, 0, 0.1);
     
-  border: 1px solid rgba(155, 121, 82, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   
   text-align: center;
   width: 100%;
+  max-width: 600px;
   /* Use a reasonable min-height but allow growing */
   min-height: 500px;
   display: flex;
   flex-direction: column;
   margin-bottom: var(--spacing-lg); /* Space for scroll */
   
-  /* Paper texture overlay */
-  background-image: linear-gradient(135deg, rgba(255,255,255,0.7), rgba(255,255,255,0.2) 60%, rgba(240, 235, 230, 0.2) 100%);
-  
   /* Entrance Animation */
   animation: paper-entrance 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
   transform-origin: 50% 100%; /* Pivot from bottom like holding paper up */
 }
+
+.poem-bg-overlay {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transition: opacity 2s ease;
+    mix-blend-mode: overlay; /* Blend with the glass */
+    z-index: -1;
+    border-radius: inherit;
+    filter: sepia(0.3) contrast(1.2);
+}
+
+.poem-content {
+    position: relative;
+    z-index: 2;
+    background: radial-gradient(circle at center, rgba(0,0,0,0.4) 0%, transparent 80%); /* Vignette behind text to improve readability */
+    padding: 2rem;
+    border-radius: 20px;
+    width: 100%;
+    height: 100%;
+}
+
+.poem-emotion {
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.poem-word {
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+
+/* Override previous paper texture */
+/* background-image removed from container above */
 
 @keyframes paper-entrance {
   0% {

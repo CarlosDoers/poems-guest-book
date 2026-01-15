@@ -274,21 +274,31 @@ export default function PoemDisplay({ poem, emotion, illustration, poemId, exist
       <div 
         key={poem} /* Force re-render animation on poem change */
         className="poem-container"
-        style={fallbackBg ? { background: fallbackBg } : {}}
       >
-        {/* Background Illustration */}
+        {/* Background Illustration Overlay */}
         {illustration && !imgError && (
-          <img 
-            src={illustration} 
-            alt="Ilustración abstracta" 
-            className={`illustration-bg ${isImageLoaded ? 'loaded' : ''}`}
-            onLoad={() => setIsImageLoaded(true)}
-            onError={() => {
-              console.warn('Image failed to load, switching to fallback');
-              setImgError(true);
-              setStartTextAnimation(true); // Start text immediately if image fails
+          <div 
+            className="poem-bg-overlay"
+            style={{ 
+                backgroundImage: `url(${illustration})`,
+                opacity: isImageLoaded ? 0.4 : 0 
             }}
           />
+        )}
+        
+        {/* Hidden img to trigger load event */}
+        {illustration && !imgError && (
+             <img 
+                src={illustration} 
+                alt=""
+                style={{ display: 'none' }}
+                onLoad={() => setIsImageLoaded(true)}
+                onError={() => {
+                    console.warn('Image failed to load');
+                    setImgError(true);
+                    setStartTextAnimation(true);
+                }}
+             />
         )}
 
         <div className="flourish flourish-top">
