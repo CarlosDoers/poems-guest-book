@@ -29,14 +29,20 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       const container = canvas.parentElement;
       const rect = container.getBoundingClientRect();
       
-      // High DPI support
-      const dpr = window.devicePixelRatio || 1;
+      // High DPI support - Optimized
+      // Cap DPR to 1.5 on desktops, and 1.5 on mobile/tablet to balance quality/performance
+      // Native scale (2x/3x) on iPad causes significant input lag and heat with canvas
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
       canvas.style.width = `${rect.width}px`;
       canvas.style.height = `${rect.height}px`;
       
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', {
+          alpha: true,
+          desynchronized: true // Hint to browser for lower latency drawing
+      });
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
       
@@ -47,8 +53,15 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       if (fullScreen) {
         // Modo agua: trazo semitransparente con efecto de brillo
         ctx.strokeStyle = 'rgba(255, 252, 247, 0.88)';
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
-        ctx.shadowBlur = 12;
+        
+        // Optimización: Desactivar shadowBlur en móviles/tablets para evitar lag
+        const isMobile = window.innerWidth <= 1024;
+        if (!isMobile) {
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+            ctx.shadowBlur = 12;
+        } else {
+            ctx.shadowBlur = 0; // Mucho más rápido
+        }
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
       } else {

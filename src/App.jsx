@@ -143,12 +143,12 @@ function RippleBackground({ enabled, sharedPointerRef }) {
         return 130.0 * dot(m, g);
       }
 
-      // Fractal Brownian Motion para ondas más complejas (Optimized: 3 octaves)
+      // Fractal Brownian Motion para ondas más complejas (Optimized: 2 octaves for better performance)
       float fbm(vec2 p, float t) {
         float f = 0.0;
         float w = 0.5;
         float noiseSpeed = ${SHADER_CONFIG.organicNoiseSpeed.toFixed(2)};
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 2; i++) {
           f += w * snoise(p + t * noiseSpeed);
           p *= 2.0;
           w *= 0.5;
@@ -263,27 +263,26 @@ function RippleBackground({ enabled, sharedPointerRef }) {
         vec2 texUv = (suv - 0.5) * texScale + 0.5;
         texUv = clamp(texUv, 0.0, 1.0);
         
-        // --- Radial Blur / Focus Effect ---
+        // --- Radial Blur / Focus Effect (Optimized) ---
         float distToCenter = length(uvn);
         float radialBlur = smoothstep(${SHADER_CONFIG.focusRadius.toFixed(2)}, 1.15, distToCenter);
         float blurStr = ${SHADER_CONFIG.baseBlur.toFixed(1)} + (radialBlur * ${SHADER_CONFIG.blurStrength.toFixed(1)});
         
         vec3 camCol;
         
-        if (blurStr > 0.01) {
-          vec3 acc = texture2D(uChannel0, texUv).rgb * 4.0;
-          float off = 0.0025 * blurStr;
+        // Optimización: Reducir drásticamente el muestreo de blur para rendimiento móvil
+        // Usar solo 4 muestras en lugar de 8, o 0 si el blur es bajo
+        if (blurStr > 0.05) { 
+          vec3 acc = texture2D(uChannel0, texUv).rgb * 2.0; // Peso central reducido
+          float off = 0.003 * blurStr; // Offset un poco mayor para compensar menos muestras
           
-          acc += texture2D(uChannel0, clamp(texUv + vec2(off, 0.0), 0.0, 1.0)).rgb;
-          acc += texture2D(uChannel0, clamp(texUv + vec2(-off, 0.0), 0.0, 1.0)).rgb;
-          acc += texture2D(uChannel0, clamp(texUv + vec2(0.0, off), 0.0, 1.0)).rgb;
-          acc += texture2D(uChannel0, clamp(texUv + vec2(0.0, -off), 0.0, 1.0)).rgb;
+          // Solo 4 muestras diagonales
           acc += texture2D(uChannel0, clamp(texUv + vec2(off, off), 0.0, 1.0)).rgb;
           acc += texture2D(uChannel0, clamp(texUv + vec2(-off, off), 0.0, 1.0)).rgb;
           acc += texture2D(uChannel0, clamp(texUv + vec2(off, -off), 0.0, 1.0)).rgb;
           acc += texture2D(uChannel0, clamp(texUv + vec2(-off, -off), 0.0, 1.0)).rgb;
           
-          camCol = acc / 12.0;
+          camCol = acc / 6.0;
         } else {
           camCol = texture2D(uChannel0, texUv).rgb;
         }
@@ -481,9 +480,12 @@ function RippleBackground({ enabled, sharedPointerRef }) {
 
     const resize = () => {
       // PERFORMANCE OPTIMIZATION:
-      // Cap DPR to 1.5 to reduce GPU load on Retina screens (iPad). 
-      // Rendering at native 2x/3x resolution generates excessive heat with this complex shader.
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      // Cap DPR strictly to 1.0 for mobile/iPad to prevent overheating and battery drain.
+      // Rendering at > 1.0 with complex shaders is too heavy for sustained usage on mobile.
+      // Check for touch capability and screen width to target iPads (including 12.9" Pro in landscape)
+      const isMobile = (window.innerWidth <= 1366 && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window));
+      const maxDpr = isMobile ? 1.0 : 1.5;
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
       
       const w = Math.max(1, Math.floor(window.innerWidth * dpr));
       const h = Math.max(1, Math.floor(window.innerHeight * dpr));
@@ -502,22 +504,33 @@ function RippleBackground({ enabled, sharedPointerRef }) {
 
     let raf = 0;
     const start = performance.now();
-    const render = () => {
-      const now = performance.now();
-      const t = (now - start) / 1000;
-      const m = getMouseState();
-      
-      gl.uniform1f(uTime, t);
-      gl.uniform4f(uMouse, m.x, m.y, m.down, 0);
-      gl.uniform1f(uVideoReady, videoReady ? 1 : 0);
+    let lastFrameTime = 0;
+    // Limit to 30 FPS to reduce battery consumption significantly
+    const frameInterval = 1000 / 30; 
 
-      if (videoReady && video.readyState >= 2) {
-        gl.uniform2f(uVideoRes, video.videoWidth || 1280, video.videoHeight || 720);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    const render = (now) => {
+      // Frame limiter logic
+      const delta = now - lastFrameTime;
+      
+      if (delta >= frameInterval) {
+        lastFrameTime = now - (delta % frameInterval);
+        
+        const t = (now - start) / 1000;
+        const m = getMouseState();
+        
+        gl.uniform1f(uTime, t);
+        gl.uniform4f(uMouse, m.x, m.y, m.down, 0);
+        gl.uniform1f(uVideoReady, videoReady ? 1 : 0);
+
+        if (videoReady && video.readyState >= 2) {
+          gl.uniform2f(uVideoRes, video.videoWidth || 1280, video.videoHeight || 720);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+        }
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      
       raf = requestAnimationFrame(render);
     };
 

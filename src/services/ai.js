@@ -25,7 +25,7 @@ const USER_PROMPT_POET = `Escribe un poema breve, dinámico y sensorial, de tono
 Instrucciones:
 1. Relaciona la emoción con un único detalle de la naturaleza ibérica (botánica, aves, agua, luz, bosque, insectos, crepúsculo), usándolo como figura literaria central.
 2. El poema debe exaltar lo bello de la vida desde la observación atenta del detalle, con precisión, delicadeza y riqueza sensorial.
-3. El texto debe tener entre 4 y 6 versos, con ritmo vivo y variación en la longitud de los versos.
+3. El texto debe tener entre 4 y 6 versos, con ritmo vivo.
 4. Evita referencias a personas, explicaciones, moralejas y clichés.
 5. No mezcles escenas ni motivos naturales.
 6. El poema debe cerrar con una imagen viva y expansiva, clara y visible, que deje una sensación de continuidad más allá del texto.`;
