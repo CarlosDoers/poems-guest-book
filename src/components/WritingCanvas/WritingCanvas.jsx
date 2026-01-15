@@ -137,7 +137,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     setIsDrawing(true);
     setHasContent(true);
-  }, [getPointerPosition]);
+  }, [getPointerPosition, onStrokeUpdate]);
 
   const draw = useCallback((e) => {
     if (!isDrawing) return;
@@ -171,7 +171,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         ctx.beginPath();
         ctx.moveTo(x, y);
     }
-  }, [isDrawing, getPointerPosition]);
+  }, [isDrawing, getPointerPosition, onStrokeUpdate]);
 
   const stopDrawing = useCallback((e) => {
     if (e) {
@@ -211,7 +211,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     setIsDrawing(true);
     setHasContent(true);
-  }, [getTouchPosition]);
+  }, [getTouchPosition, onStrokeUpdate]);
 
   const handleTouchMove = useCallback((e) => {
     if (!isDrawing) return;
@@ -234,7 +234,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(x, y);
-  }, [isDrawing, getTouchPosition]);
+  }, [isDrawing, getTouchPosition, onStrokeUpdate]);
 
   const handleTouchEnd = useCallback((e) => {
     e.preventDefault();
@@ -249,7 +249,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
     
     setIsDrawing(false);
-  }, []);
+  }, [onStrokeUpdate]);
 
   // Pointer event wrappers that check if touch was recently used
   const handlePointerDown = useCallback((e) => {

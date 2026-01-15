@@ -1,17 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPoemAudio, cleanupAudioUrl, isElevenLabsConfigured } from '../../services/elevenlabs';
 import { uploadAudio, updatePoemAudio, isSupabaseConfigured } from '../../services/supabase';
 import './PoemDisplay.css';
-
-// Helper for pastel gradient (shared logic)
-const stringToColor = (str) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const h = Math.abs(hash % 360);
-  return `linear-gradient(135deg, hsl(${h}, 70%, 90%) 0%, hsl(${(h + 40) % 360}, 60%, 95%) 100%)`;
-};
 
 export default function PoemDisplay({ poem, emotion, illustration, poemId, existingAudioUrl, onNewPoem }) {
   const illustrationUrlRef = useRef(null); // Track temp illustration URLs for cleanup
@@ -259,11 +249,6 @@ export default function PoemDisplay({ poem, emotion, illustration, poemId, exist
     setIsLoadingAudio(false);
     setIsAudioReady(false);
   };
-
-  // Calculate fallback background if needed (memoized) - must be before early return
-  const fallbackBg = useMemo(() => {
-    return imgError || !illustration ? stringToColor(emotion || 'poem') : null;
-  }, [imgError, illustration, emotion]);
 
   if (!poem) return null;
 
