@@ -7,7 +7,7 @@
   align-items: center;
   flex-grow: 1;
   width: 100%;
-  max-width: 700px;
+  max-width: 750px;
   height: auto;
   padding: var(--spacing-lg);
   margin: auto;
@@ -35,7 +35,7 @@
   
   text-align: center;
   width: 100%;
-  max-width: 600px;
+  max-width: 700px;
   /* Use a reasonable min-height but allow growing */
   min-height: 500px;
   display: flex;
@@ -62,7 +62,6 @@
 .poem-content {
     position: relative;
     z-index: 2;
-    background: radial-gradient(circle at center, rgba(0,0,0,0.4) 0%, transparent 80%); /* Vignette behind text to improve readability */
     padding: 2rem;
     border-radius: 20px;
     width: 100%;
@@ -82,16 +81,21 @@
 /* Override previous paper texture */
 /* background-image removed from container above */
 
+/* Efecto "emerger del agua" - más orgánico */
 @keyframes paper-entrance {
   0% {
     opacity: 0;
-    transform: translateY(40px) scale(0.96) rotate(-1deg);
-    filter: blur(4px);
+    transform: translateY(60px) scale(0.94);
+    filter: blur(8px) brightness(0.6) saturate(1.3);
+  }
+  40% {
+    opacity: 0.7;
+    filter: blur(3px) brightness(0.85) saturate(1.1);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1) rotate(0deg);
-    filter: blur(0);
+    transform: translateY(0) scale(1);
+    filter: blur(0) brightness(1) saturate(1);
   }
 }
 
@@ -102,7 +106,7 @@
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  gap: var(--spacing-sm); /* Increased gap for better readability */
+  gap: var(--spacing-xs);
 }
 
 /* Line Animation Styles */
@@ -118,15 +122,18 @@
   letter-spacing: 0.01em;
 }
 
-/* Individual word animation - Enhanced for organic flow */
+/* Individual word animation - Efecto "emergiendo del agua" */
 .poem-word {
   display: inline-block;
   opacity: 0;
-  transform: translateY(15px) scale(0.95);
-  filter: blur(6px);
+  transform: translateY(20px) scale(0.92);
+  filter: blur(8px) brightness(0.7);
   will-change: opacity, transform, filter;
-  transition: opacity 1s ease-out, transform 1s cubic-bezier(0.2, 0.65, 0.3, 0.9), filter 1s ease-out;
-  margin-right: 0.25em; /* Essential spacing between words */
+  transition: 
+    opacity 0.8s cubic-bezier(0.4, 0.0, 0.2, 1), 
+    transform 1.2s cubic-bezier(0.2, 0.8, 0.3, 1), 
+    filter 1s cubic-bezier(0.4, 0.0, 0.2, 1);
+  margin-right: 0.25em;
 }
 
 .poem-word:last-child {
@@ -136,7 +143,7 @@
 .poem-word.visible {
   opacity: 1;
   transform: translateY(0) scale(1);
-  filter: blur(0);
+  filter: blur(0) brightness(1);
 }
 
 .poem-text-line.visible {

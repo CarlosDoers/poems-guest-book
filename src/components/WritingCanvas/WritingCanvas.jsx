@@ -14,7 +14,7 @@ const debounce = (func, wait) => {
   };
 };
 
-export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate }) {
+export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onOpenGallery, galleryCount = 0 }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -40,10 +40,21 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
       
-      // Configure drawing style
+      // Configure drawing style - Estilo "tinta flotando en agua"
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = fullScreen ? '#FFFCF7' : '#1A1815';
+      
+      if (fullScreen) {
+        // Modo agua: trazo semitransparente con efecto de brillo
+        ctx.strokeStyle = 'rgba(255, 252, 247, 0.88)';
+        ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+        ctx.shadowBlur = 12;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      } else {
+        ctx.strokeStyle = '#1A1815';
+        ctx.shadowBlur = 0;
+      }
       ctx.lineWidth = 3;
       
       contextRef.current = ctx;
@@ -108,7 +119,8 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineWidth = 4 + pressure * 8; // Más grueso y sensible a la presión
+    // Trazo más suave: 3-9px según presión (antes era 4-12px)
+    ctx.lineWidth = 3 + pressure * 6;
     
     setIsDrawing(true);
     setHasContent(true);
@@ -127,7 +139,8 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         const events = e.getCoalescedEvents();
         for (const event of events) {
             const { x, y, pressure } = getPointerPosition(event);
-            ctx.lineWidth = 4 + pressure * 8;
+            // Variación orgánica del grosor basada en presión
+            ctx.lineWidth = 3 + pressure * 6;
             ctx.lineTo(x, y);
             ctx.stroke();
             ctx.beginPath();
@@ -139,7 +152,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         // Update shader
         if (onStrokeUpdate) onStrokeUpdate(x, y, true);
         
-        ctx.lineWidth = 4 + pressure * 8;
+        ctx.lineWidth = 3 + pressure * 6;
         ctx.lineTo(x, y);
         ctx.stroke();
         ctx.beginPath();
@@ -181,7 +194,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineWidth = 4 + pressure * 8;
+    ctx.lineWidth = 3 + pressure * 6;
     
     setIsDrawing(true);
     setHasContent(true);
@@ -203,7 +216,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const ctx = contextRef.current;
     if (!ctx) return; // Safety check
     
-    ctx.lineWidth = 4 + pressure * 8;
+    ctx.lineWidth = 3 + pressure * 6;
     ctx.lineTo(x, y);
     ctx.stroke();
     ctx.beginPath();
@@ -287,39 +300,52 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         )}
       </div>
       
-      {(!fullScreen || hasContent) && (
-        <div className="button-group">
+      <div className="canvas-footer">
+        {(!fullScreen || hasContent) && (
+          <div className="button-group">
+            <button 
+              className="btn btn-secondary" 
+              onClick={clearCanvas}
+              disabled={!hasContent || isProcessing}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+              </svg>
+              Borrar
+            </button>
+            <button 
+              className="btn btn-primary" 
+              onClick={handleSubmit}
+              disabled={!hasContent || isProcessing}
+            >
+              {isProcessing ? (
+                <>
+                  <span className="loading-spinner" />
+                  Creando poema...
+                </>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                  Generar poema
+                </>
+              )}
+            </button>
+          </div>
+        )}
+        
+        {/* Gallery Link */}
+        {galleryCount > 0 && onOpenGallery && (
           <button 
-            className="btn btn-secondary" 
-            onClick={clearCanvas}
-            disabled={!hasContent || isProcessing}
+            className="btn btn-ghost" 
+            style={{ fontSize: '0.9rem', opacity: 0.8 }}
+            onClick={onOpenGallery}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-            </svg>
-            Borrar
+            Ver galería de poemas ({galleryCount})
           </button>
-          <button 
-            className="btn btn-primary" 
-            onClick={handleSubmit}
-            disabled={!hasContent || isProcessing}
-          >
-            {isProcessing ? (
-              <>
-                <span className="loading-spinner" />
-                Creando poema...
-              </>
-            ) : (
-              <>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-                Generar poema
-              </>
-            )}
-          </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

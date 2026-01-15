@@ -5,12 +5,13 @@ const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
 // Spanish voices - Choose one that fits the emotional tone
 const VOICE_IDS = {
   // Pre-made voices (siempre disponibles)
+  koraly: 'sH0WdfE5fsKuM2otdQZr', // Koraly - french female
   bosco: '0vrPGvXHhDD3rbGURCk8', // Bosco - Spanish male
   oscar: 'LdJsUJ9dnNgwNnALzX1G', // Óscar - Spanish male
   
   // Voces en español recomendadas (pueden variar según tu cuenta)
   // Reemplaza estos IDs con los que encuentres en tu cuenta
-  default: '0vrPGvXHhDD3rbGURCk8', // 👈 CAMBIA ESTE ID POR TU VOZ FAVORITA
+  default: 'sH0WdfE5fsKuM2otdQZr', // 👈 CAMBIA ESTE ID POR TU VOZ FAVORITA
   
   // Para agregar más voces:
   // 1. Ve a https://elevenlabs.io/app/voice-lab

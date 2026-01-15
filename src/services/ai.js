@@ -16,22 +16,19 @@ function getOpenAI() {
   return openaiInstance;
 }
 
-const SYSTEM_PROMPT_POET = `Eres un poeta español contemporáneo con un estilo minimalista y profundo. 
-Tu especialidad es transformar emociones en versos que tocan el alma.
+const SYSTEM_PROMPT_POET = `Eres un poeta experto en naturaleza y emociones.
+Responde SOLO con el texto del poema, sin títulos, explicaciones ni comentarios.
+Usa puntuación natural para marcar el ritmo.`;
 
-Reglas para tus poemas:
-1. Siempre escribes en español
-2. Tus poemas son evocadores y emotivos
-3. Usas un lenguaje elegante pero accesible
-4. Nunca incluyes el título ni la emoción en el poema
-5. Prefieres el verso libre, evitas rimas forzadas
-6. Tus poemas tienen entre 4 y 6 versos
-7. Cada verso va en una línea separada
-8. IMPORTANTE: Usa puntuación natural (comas, puntos) para marcar pausas y ritmo. Los versos son para visualización, pero la puntuación debe hacer que el poema se lea de forma fluida y natural cuando se recita sin pausas artificiales entre versos.
+const USER_PROMPT_POET = `Escribe un poema breve, dinámico y sensorial, de tono poético y cuidado, inspirado en la emoción: "{emotion}".
 
-Responde SOLO con el poema, sin explicaciones ni comentarios.`;
-
-const USER_PROMPT_POET = `Escribe un poema inspirado en la emoción: "{emotion}"`;
+Instrucciones:
+1. Relaciona la emoción con un único detalle de la naturaleza ibérica (botánica, aves, agua, luz, bosque, insectos, crepúsculo), usándolo como figura literaria central.
+2. El poema debe exaltar lo bello de la vida desde la observación atenta del detalle, con precisión, delicadeza y riqueza sensorial.
+3. El texto debe tener entre 4 y 6 versos, con ritmo vivo y variación en la longitud de los versos.
+4. Evita referencias a personas, explicaciones, moralejas y clichés.
+5. No mezcles escenas ni motivos naturales.
+6. El poema debe cerrar con una imagen viva y expansiva, clara y visible, que deje una sensación de continuidad más allá del texto.`;
 
 /**
  * Check if the OpenAI API is properly configured
@@ -151,14 +148,15 @@ export async function generateIllustration(emotion) {
     console.log('🎨 Generating illustration for:', emotion);
     
     // Add random variations to ensure uniqueness
+    // Variaciones basadas en detalles naturales y texturas orgánicas
     const styles = [
-      "dynamic flowing lines",
-      "concentric circles and ripples",
-      "scattered ink splashes",
-      "organic floral shapes",
-      "geometric fragments dissolving",
-      "soft cloud-like gradients",
-      "sharp expressive strokes"
+      "abstract macro texture of leaf veins and dew",
+      "ethereal light filtering through olive branches",
+      "fluid river water reflections in watercolor",
+      "delicate organic pattern of bird plumage",
+      "soft twilight gradient over hills",
+      "wildflower silhouette against light",
+      "texture of weathered stone and moss"
     ];
     
     // Select a random style element
@@ -167,13 +165,13 @@ export async function generateIllustration(emotion) {
     // Add a random seed to the prompt text itself to force variety
     const randomSeed = Math.random().toString(36).substring(7);
 
-    const prompt = `A complete, well-composed minimal abstract watercolor illustration representing the emotion "${emotion}". 
+    const prompt = `A delicate, sensory, abstract watercolor illustration inspired by a detail of nature (botany, light, water) representing the emotion "${emotion}". 
     Artistic direction: ${randomStyle}.
-    COMPOSITION: The artwork must be fully contained within the frame, centered, with balanced margins on all sides. No cropped or cut-off elements.
-    Color palette: Use soft, muted, pastel tones that symbolically match the emotion "${emotion}" (e.g. soft blues for tranquility, warm amber for joy, pale crimson for passion). 
-    STYLE: Delicate, ethereal, elegant. Keep all colors desaturated and harmonious.
+    CONCEPT: Exalt the beauty of a single natural detail. Organic forms, natural textures, atmospheric light. No human figures.
+    Color palette: Sophisticated, natural, and harmonious tones matching the emotion "${emotion}" (e.g. earthy ochres, deep river blues, olive greens, sunset purples). 
+    STYLE: Minimalist, poetic, premium art. Use negative space effectively. 
     Background: Pure white, clean background surrounding the central composition.
-    CRITICAL: Ensure the entire artistic composition is visible and complete within the image boundaries. No elements should be cut off at the edges.
+    CRITICAL: Ensure the entire artistic composition is visible and complete within the image boundaries. No elements should be cut off.
     Variation: ${randomSeed}.`;
 
     const response = await openai.images.generate({

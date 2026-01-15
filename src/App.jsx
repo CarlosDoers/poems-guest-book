@@ -28,46 +28,59 @@ const WRITING_STAGES = {
 // -------------------------------------------------------------
 const SHADER_CONFIG = {
   // Movimiento base del agua
-  baseWaveSpeed: 1.2,       // Velocidad mucho más suave
-  waveAmplitude: 2.0,       // Altura general de las olas (1.0 = normal, 2.0 = fuerte)
-  waveFrequency: 7.0,       // Frecuencia/Densidad de olas (más alto = más ondas juntas)
+  baseWaveSpeed: 1.4,         // Velocidad más suave para ondas orgánicas
+  waveAmplitude: 1.5,         // Altura general de las olas (reducido para más sutileza)
+  waveFrequency: 12.0,         // Frecuencia/Densidad de olas (más bajo = ondas más amplias)
   
-  // Interacción (Dibujo/Lápiz)
-  interactionRadius: 0.5,   // Radio de efecto del pincel (0.0 a 1.0)
-  interactionStrength: 0.5, // Intensidad de la onda al tocar (altura)
-  interactionFreq: 20.0,    // Frecuencia de las ondas del pincel (más alto = más ondas juntas)
-  interactionSpeed: 8.0,    // Velocidad a la que se mueven las ondas del pincel
-
+  // Ruido orgánico (NUEVO - clave para naturalidad)
+  organicNoiseScale: 3.0,     // Escala del ruido Simplex para ondas naturales
+  organicNoiseSpeed: 0.7,     // Velocidad del ruido (lento = más sereno)
+  organicNoiseStrength: 0.5,  // Intensidad del ruido en las ondas
+  microWaveIntensity: 0.01,   // Pequeñas ondulaciones de superficie - 0.12
+  microWaveSpeed: 0.2,        // Velocidad de micro-ondas
+  
+  // Interacción (Dibujo/Lápiz) - MÁS ORGÁNICO Y SUTIL
+  interactionRadius: 0.9,     // Radio de efecto más amplio para bordes suaves
+  interactionStrength: 2.25,  // Intensidad reducida para sutileza
+  interactionFreq: 4.5,       // Ondas más anchas y gentiles
+  interactionSpeed: 2.5,      // Propagación más lenta y serena
+  interactionDecay: 1.8,      // Desvanecimiento más gradual
+  interactionWobble: 0.18,    // Más distorsión orgánica (menos círculos perfectos)
+  
   // Distorsión visual (Refracción)
-  refractionStrength: 0.075, // Cuánto distorsiona la imagen de fondo (0.0 = sin distorsión)
+  refractionStrength: 0.065,  // Cuánto distorsiona la imagen de fondo (más sutil)
 
-  // Color y Atmósfera
-  waterTint: [0.0, 0.2, 0.5],  // Color del tinte azul (R, G, B) - Más profundo
-  tintIntensity: 0.55,         // Intensidad de la mezcla
-  colorBalance: [0.8, 0.95, 1.3], // Menos rojo, más azul para efecto subacuático
-  contrast: 1.8,               // Aumentar contraste para sombras marcadas
-  brightness: 0.7,             // Ligeramente más oscuro
+  // Color y Atmósfera - MEJORADO con variación de profundidad
+  waterTint: [0.02, 0.18, 0.42],   // Color del tinte azul profundo
+  shallowTint: [0.08, 0.28, 0.52], // Color en zonas "superficiales"
+  tintIntensity: 0.48,             // Intensidad de la mezcla (más sutil)
+  depthColorVariation: 0.25,       // Variación de color según altura de onda
+  colorBalance: [0.85, 0.95, 1.25], // Balance de color más natural
+  contrast: 1.5,                   // Contraste reducido para look más natural
+  brightness: 0.85,                // Ligeramente más oscuro
+  
+  // Cáusticas (patrones de luz refractada) - NUEVO
+  causticsIntensity: 0.05,    // Intensidad de cáusticas (sutil)
+  causticsScale: 29.0,         // Tamaño del patrón
+  causticsSpeed: 0.4,         // Velocidad de movimiento
   
   // Textura y Grano
-  noiseIntensity: 0.2,        // Intensidad del grano/ruido (0.0 = imagen limpia)
+  noiseIntensity: 0.08,       // Intensidad del grano (más sutil)
 
   // Iluminación (Reflejos Especulares)
-  specularIntensity: 1.0,      // Intensidad de los reflejos de luz (0.0 = mate, >1.0 = muy brillante)
-  specularShininess: 60.0,     // "Dureza" del brillo (más alto = punto de luz más pequeño y concentrado)
-  lightDirection: [-0.5, 0.5, 1.0], // Dirección de la luz virtual [x, y, z]
+  specularIntensity: 0.8,     // Intensidad de los reflejos de luz (más sutil)
+  specularShininess: 55.0,    // Brillo más suave y natural
+  lightDirection: [-0.4, -0.6, 1.0], // Dirección de la luz virtual [x, y, z]
 
   // Cámara
-  cameraZoom: 1.0,             // Zoom de la cámara (1.0 = normal, <1.0 = zoom in/cerca, >1.0 = alejar)
+  cameraZoom: 1.0,            // Zoom de la cámara (1.0 = normal)
 
-  // Lluvia (Gotas aleatorias)
-  rainIntensity: 0.6,          // Intensidad de las gotas (0.0 = desactivado)
-  rainScale: 2.0,              // Escala de la cuadrícula de lluvia (más alto = gotas más pequeñas y frecuentes en pantalla)
-  rainSpeed: 1.0,              // Velocidad del ciclo de lluvia
+
 
   // Enfoque (Blur Radial / Tilt-Shift)
-  blurStrength: 3.0,           // Cantidad de desenfoque en los bordes
-  focusRadius: 0.4,            // Tamaño del área central nítida (0.0 a 1.0)
-  baseBlur: 0.8                // Desenfoque base en toda la imagen (Efecto difuso/reflejo)
+  blurStrength: 2.5,          // Cantidad de desenfoque en los bordes
+  focusRadius: 0.45,          // Tamaño del área central nítida
+  baseBlur: 0.6               // Desenfoque base en toda la imagen
 };
 
 function RippleBackground({ enabled, sharedPointerRef }) {
@@ -100,210 +113,224 @@ function RippleBackground({ enabled, sharedPointerRef }) {
       uniform sampler2D uChannel0;
       uniform float uVideoReady;
 
-      vec2 paramsDefault() {
-        return vec2(${SHADER_CONFIG.baseWaveSpeed.toFixed(1)}, 1.0);
+      // ================================================
+      // SIMPLEX NOISE - Para ondas orgánicas naturales
+      // ================================================
+      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+      vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
+
+      float snoise(vec2 v) {
+        const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                           -0.577350269189626, 0.024390243902439);
+        vec2 i  = floor(v + dot(v, C.yy));
+        vec2 x0 = v - i + dot(i, C.xx);
+        vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+        vec4 x12 = x0.xyxy + C.xxzz;
+        x12.xy -= i1;
+        i = mod289(i);
+        vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+        vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+        m = m*m; m = m*m;
+        vec3 x = 2.0 * fract(p * C.www) - 1.0;
+        vec3 h = abs(x) - 0.5;
+        vec3 ox = floor(x + 0.5);
+        vec3 a0 = x - ox;
+        m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+        vec3 g;
+        g.x = a0.x * x0.x + h.x * x0.y;
+        g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+        return 130.0 * dot(m, g);
       }
 
-      // Simple pseudo-random function for grain/noise
+      // Fractal Brownian Motion para ondas más complejas (Optimized: 3 octaves)
+      float fbm(vec2 p, float t) {
+        float f = 0.0;
+        float w = 0.5;
+        float noiseSpeed = ${SHADER_CONFIG.organicNoiseSpeed.toFixed(2)};
+        for (int i = 0; i < 3; i++) {
+          f += w * snoise(p + t * noiseSpeed);
+          p *= 2.0;
+          w *= 0.5;
+          noiseSpeed *= 0.8;
+        }
+        return f;
+      }
+
+      // ================================================
+      // FUNCIONES AUXILIARES
+      // ================================================
       float rand(vec2 co) {
         return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
       }
 
-      float rain(vec2 pos, float t) {
-          float scale = ${SHADER_CONFIG.rainScale.toFixed(1)};
-          vec2 id = floor(pos * scale);
-          vec2 f = fract(pos * scale) - 0.5;
-          
-          float n = rand(id);
-          float t_adj = t * ${SHADER_CONFIG.rainSpeed.toFixed(1)} + n * 100.0;
-          float period = 4.0 + n * 10.0; // Random period
-          float life = mod(t_adj, period);
-          
-          float r = 0.0;
-          if (life < 1.5) {
-               // Random position for this cycle
-               float cycleIdx = floor(t_adj / period);
-               float rndStart = rand(id + cycleIdx);
-               vec2 offset = vec2(
-                   (rndStart - 0.5) * 0.6,
-                   (rand(id + cycleIdx + 0.1) - 0.5) * 0.6
-               );
-               
-               // Variation in size (max 0.4, min 0.15) and intensity
-               float dropRnd = fract(rndStart * 123.45); 
-               float size = 0.15 + 0.25 * dropRnd;
-               float intensity = 0.5 + 0.5 * dropRnd; // Smaller drops are also weaker
 
-               float d = length(f - offset);
-               float mask = smoothstep(size, 0.0, d);
-               r = sin(25.0 * d - 10.0 * life) * exp(-life * 2.0) * mask * intensity;
-          }
-          return r * ${SHADER_CONFIG.rainIntensity.toFixed(1)};
+
+      // Cáusticas (patrones de luz bajo el agua)
+      float caustics(vec2 uv, float t) {
+        float scale = ${SHADER_CONFIG.causticsScale.toFixed(1)};
+        float speed = ${SHADER_CONFIG.causticsSpeed.toFixed(2)};
+        
+        vec2 p = uv * scale;
+        float c1 = snoise(p + t * speed);
+        float c2 = snoise(p * 1.5 - t * speed * 0.7 + vec2(1.7, 2.3));
+        float c3 = snoise(p * 2.0 + t * speed * 0.5 + vec2(3.1, 1.4));
+        
+        // Combinar para crear patrón de red de luz
+        float caustic = c1 * c2 * c3;
+        caustic = pow(abs(caustic), 0.5) * sign(caustic);
+        
+        return caustic * ${SHADER_CONFIG.causticsIntensity.toFixed(2)};
       }
 
-      float height(vec2 pos, float t, vec2 params) {
-        float speed = params.x;
+      // ================================================
+      // FUNCIÓN PRINCIPAL DE ALTURA DE ONDA
+      // ================================================
+      float height(vec2 pos, float t) {
+        float speed = ${SHADER_CONFIG.baseWaveSpeed.toFixed(1)};
         float amp = ${SHADER_CONFIG.waveAmplitude.toFixed(1)};
         float freq = ${SHADER_CONFIG.waveFrequency.toFixed(1)};
+        float noiseScale = ${SHADER_CONFIG.organicNoiseScale.toFixed(1)};
+        float noiseStrength = ${SHADER_CONFIG.organicNoiseStrength.toFixed(2)};
+        
         float w = 0.0;
         
-        // Sum of sine waves with turbulence to create randomness
-        // Layer 1: Base swell (large, slow)
-        w += 0.50 * amp * sin(dot(pos, vec2(0.8, 0.5)) * freq + t * speed);
+        // === ONDAS ORGÁNICAS CON RUIDO SIMPLEX ===
+        // Capa base: ondas grandes y suaves con ruido
+        float noiseOffset = fbm(pos * noiseScale * 0.3, t * 0.2);
+        w += 0.45 * amp * sin(dot(pos + noiseOffset * 0.3, vec2(0.7, 0.4)) * freq + t * speed);
         
-        // Layer 2: Cross waves (medium)
-        w += 0.35 * amp * sin(dot(pos, vec2(-0.7, 0.7)) * (freq * 1.4) + t * speed * 1.1);
+        // Capa secundaria: ondas cruzadas con variación
+        float noiseOffset2 = snoise(pos * noiseScale * 0.5 + t * 0.15);
+        w += 0.30 * amp * sin(dot(pos, vec2(-0.6, 0.8)) * (freq * 1.3) + t * speed * 0.9 + noiseOffset2 * 0.5);
         
-        // Layer 3: Turbulence (irregular, breaking linearity)
-        // Using coordinate distortion (sin inside sin) to simulate random liquid motion
-        float q = freq * 2.2;
-        w += 0.15 * amp * sin(pos.x * q + t * speed * 1.5 + 2.0 * sin(pos.y * q * 0.4));
-        w += 0.12 * amp * sin(pos.y * q * 1.3 + t * speed * 1.6 + 2.0 * sin(pos.x * q * 0.5));
+        // Capa de turbulencia orgánica (reemplaza senos anidados)
+        w += noiseStrength * amp * fbm(pos * noiseScale, t * speed * 0.4);
+        
+        // === MICRO-ONDAS DE SUPERFICIE ===
+        float microWave = snoise(pos * 15.0 + t * ${SHADER_CONFIG.microWaveSpeed.toFixed(1)});
+        microWave += 0.5 * snoise(pos * 25.0 - t * ${SHADER_CONFIG.microWaveSpeed.toFixed(1)} * 1.3);
+        w += microWave * ${SHADER_CONFIG.microWaveIntensity.toFixed(2)} * amp;
 
-        // Raindrops
-        if (${SHADER_CONFIG.rainIntensity.toFixed(1)} > 0.0) {
-             w += rain(pos, t);
-        }
 
-        // Interaction ripple
-        if (uMouse.z > 0.0) {
-           vec2 m = (uMouse.xy / uResolution.xy) * 2.0 - 1.0;
-           float d = length(pos - m);
-           // Localized distortion based on distance to pencil
-           float mask = smoothstep(${SHADER_CONFIG.interactionRadius.toFixed(1)}, 0.0, d); 
-           // Add high frequency ripples near pointer
-           w += ${SHADER_CONFIG.interactionStrength.toFixed(1)} * sin(${SHADER_CONFIG.interactionFreq.toFixed(1)} * d - ${SHADER_CONFIG.interactionSpeed.toFixed(1)} * t) * mask;
-        }
+
+
         
         return w;
       }
 
-      vec2 normalV(vec2 pos, float t, vec2 params) {
-        float e = 0.01;
+      // Calcular normal de superficie
+      vec2 normalV(vec2 pos, float t) {
+        float e = 0.008; // Epsilon más pequeño para normales más suaves
         return vec2(
-          height(pos - vec2(e, 0.0), t, params) - height(pos, t, params),
-          height(pos - vec2(0.0, e), t, params) - height(pos, t, params)
+          height(pos - vec2(e, 0.0), t) - height(pos, t),
+          height(pos - vec2(0.0, e), t) - height(pos, t)
         );
       }
 
+      // Color de fondo (fallback simple sin cámara)
       vec3 baseColor(vec2 uv) {
-        vec2 p = uv * 2.0 - 1.0;
-        float r = length(p);
-        float a = atan(p.y, p.x);
-        float g1 = 0.55 + 0.45 * sin(3.0 * a + 2.2 * uTime + r * 4.0);
-        float g2 = 0.55 + 0.45 * sin(2.0 * a - 1.6 * uTime + r * 3.0);
-        vec3 c1 = vec3(0.02, 0.45, 0.62);
-        vec3 c2 = vec3(0.08, 0.85, 0.92);
-        vec3 col = mix(c1, c2, 0.5 + 0.5 * sin((g1 + g2) * 1.2));
-        float v = smoothstep(1.1, 0.2, r);
-        return col * (0.35 + 0.65 * v);
+        return vec3(0.02, 0.18, 0.42); // Color base del agua (Deep Blue)
       }
 
+      // ================================================
+      // MAIN
+      // ================================================
       void main() {
         vec2 fragCoord = gl_FragCoord.xy;
         vec2 uv = fragCoord / uResolution.xy;
         vec2 uvn = 2.0 * uv - vec2(1.0);
 
-        vec2 params = paramsDefault();
-        // Global mouse interaction removed to keep effect local
-        // if (uMouse.z > 0.0) { ... }
-
-        vec2 n = normalV(uvn, uTime, params);
+        // Calcular altura y normal
+        float h = height(uvn, uTime);
+        vec2 n = normalV(uvn, uTime);
         vec2 duv = n * ${SHADER_CONFIG.refractionStrength.toFixed(3)};
 
         vec2 suv = vec2(1.0 - (uv.x + duv.x), uv.y + duv.y);
         
-        // --- Aspect Ratio Correction & Zoom (Cover Mode) ---
+        // --- Aspect Ratio Correction & Zoom ---
         float screenAspect = uResolution.x / uResolution.y;
         float videoAspect = uVideoReady > 0.5 ? uVideoRes.x / uVideoRes.y : 1.77; 
         
         vec2 texScale = vec2(1.0);
         if (screenAspect > videoAspect) {
-             // Screen is wider than video, crop top/bottom (scale Y)
-             texScale.y = videoAspect / screenAspect;
+          texScale.y = videoAspect / screenAspect;
         } else {
-             // Screen is taller than video, crop sides (scale X)
-             texScale.x = screenAspect / videoAspect;
+          texScale.x = screenAspect / videoAspect;
         }
         
-        // Apply Zoom (Manual correction for wide angle lens)
         texScale *= ${SHADER_CONFIG.cameraZoom.toFixed(2)};
-
-        // Transform simplified UVs for texture sampling
-        // We use 'suv' which already includes water distortion
         vec2 texUv = (suv - 0.5) * texScale + 0.5;
-        // ---------------------------------------------------
-
-        texUv = clamp(texUv, 0.0, 1.0); // Clamp to avoid repeating/glitching edges
+        texUv = clamp(texUv, 0.0, 1.0);
         
         // --- Radial Blur / Focus Effect ---
         float distToCenter = length(uvn);
-        // Calculate how blurry this pixel should be (0.0 = sharp, 1.0 = blurry)
-        float radialBlur = smoothstep(${SHADER_CONFIG.focusRadius.toFixed(2)}, 1.2, distToCenter);
-        
-        // Combine base blur (center/reflection look) with radial blur (edges)
+        float radialBlur = smoothstep(${SHADER_CONFIG.focusRadius.toFixed(2)}, 1.15, distToCenter);
         float blurStr = ${SHADER_CONFIG.baseBlur.toFixed(1)} + (radialBlur * ${SHADER_CONFIG.blurStrength.toFixed(1)});
         
         vec3 camCol;
         
         if (blurStr > 0.01) {
-             // 9-tap Blur (Center + 8 surrounding)
-             vec3 acc = texture2D(uChannel0, texUv).rgb * 4.0; // Center weight
-             float off = 0.003 * blurStr; // Offset spreads with blur strength
-             
-             acc += texture2D(uChannel0, clamp(texUv + vec2(off, 0.0), 0.0, 1.0)).rgb;
-             acc += texture2D(uChannel0, clamp(texUv + vec2(-off, 0.0), 0.0, 1.0)).rgb;
-             acc += texture2D(uChannel0, clamp(texUv + vec2(0.0, off), 0.0, 1.0)).rgb;
-             acc += texture2D(uChannel0, clamp(texUv + vec2(0.0, -off), 0.0, 1.0)).rgb;
-             
-             // Diagonals
-             acc += texture2D(uChannel0, clamp(texUv + vec2(off, off), 0.0, 1.0)).rgb;
-             acc += texture2D(uChannel0, clamp(texUv + vec2(-off, off), 0.0, 1.0)).rgb;
-             acc += texture2D(uChannel0, clamp(texUv + vec2(off, -off), 0.0, 1.0)).rgb;
-             acc += texture2D(uChannel0, clamp(texUv + vec2(-off, -off), 0.0, 1.0)).rgb;
-             
-             camCol = acc / 12.0; // Total weight (4 + 8)
+          vec3 acc = texture2D(uChannel0, texUv).rgb * 4.0;
+          float off = 0.0025 * blurStr;
+          
+          acc += texture2D(uChannel0, clamp(texUv + vec2(off, 0.0), 0.0, 1.0)).rgb;
+          acc += texture2D(uChannel0, clamp(texUv + vec2(-off, 0.0), 0.0, 1.0)).rgb;
+          acc += texture2D(uChannel0, clamp(texUv + vec2(0.0, off), 0.0, 1.0)).rgb;
+          acc += texture2D(uChannel0, clamp(texUv + vec2(0.0, -off), 0.0, 1.0)).rgb;
+          acc += texture2D(uChannel0, clamp(texUv + vec2(off, off), 0.0, 1.0)).rgb;
+          acc += texture2D(uChannel0, clamp(texUv + vec2(-off, off), 0.0, 1.0)).rgb;
+          acc += texture2D(uChannel0, clamp(texUv + vec2(off, -off), 0.0, 1.0)).rgb;
+          acc += texture2D(uChannel0, clamp(texUv + vec2(-off, -off), 0.0, 1.0)).rgb;
+          
+          camCol = acc / 12.0;
         } else {
-             camCol = texture2D(uChannel0, texUv).rgb;
+          camCol = texture2D(uChannel0, texUv).rgb;
         }
         
-        // --- Underwater Color Grading ---
-        // 1. Contrast & Brightness (Accentuates shadows)
-        camCol = (camCol - 0.5) * ${SHADER_CONFIG.contrast.toFixed(1)} + 0.6;
-        camCol += (${SHADER_CONFIG.brightness.toFixed(1)} - 1.0);
+        // --- Color Grading Subacuático ---
+        camCol = (camCol - 0.5) * ${SHADER_CONFIG.contrast.toFixed(2)} + 0.55;
+        camCol += (${SHADER_CONFIG.brightness.toFixed(2)} - 1.0);
+        camCol.r *= 0.85; // Absorción de rojo
         
-        // 2. Desaturate Red channel (Deep water absorbs red light first)
-        camCol.r *= 0.8; 
-
-        // ----------------------------------
+        // --- Variación de color según profundidad de onda ---
+        vec3 deepColor = vec3(${SHADER_CONFIG.waterTint.join(', ')});
+        vec3 shallowColor = vec3(${SHADER_CONFIG.shallowTint.join(', ')});
+        float depthFactor = clamp(h * ${SHADER_CONFIG.depthColorVariation.toFixed(2)} + 0.5, 0.0, 1.0);
+        vec3 waterColor = mix(deepColor, shallowColor, depthFactor);
         
-        // Apply blue water filter
-        vec3 waterBlue = vec3(${SHADER_CONFIG.waterTint.join(', ')});
-        camCol = mix(camCol, waterBlue, ${SHADER_CONFIG.tintIntensity.toFixed(1)}); // Mix with blue
+        camCol = mix(camCol, waterColor, ${SHADER_CONFIG.tintIntensity.toFixed(2)});
         
-        // Add mystical grain/noise
-        float noise = rand(uv + uTime * 0.1) * ${SHADER_CONFIG.noiseIntensity.toFixed(2)};
+        // --- Añadir cáusticas sutiles ---
+        float causticsVal = caustics(uv, uTime);
+        camCol += vec3(0.8, 0.9, 1.0) * causticsVal * 0.15;
+        
+        // --- Grano/Ruido sutil ---
+        float noise = (rand(uv + uTime * 0.1) - 0.5) * ${SHADER_CONFIG.noiseIntensity.toFixed(2)} * 2.0;
         camCol += vec3(noise);
         
-        camCol *= vec3(${SHADER_CONFIG.colorBalance.join(', ')}); // Cool balance
+        camCol *= vec3(${SHADER_CONFIG.colorBalance.join(', ')});
         
         vec3 col = mix(baseColor(fract(suv)), camCol, step(0.5, uVideoReady));
 
-        // Add Specular Highlights (Water surface reflection)
-        // Convert 2D gradient normal to 3D surface normal
-        vec3 normal3D = normalize(vec3(-n.x * 5.0, -n.y * 5.0, 1.0));
+        // --- Reflejos Especulares ---
+        vec3 normal3D = normalize(vec3(-n.x * 4.0, -n.y * 4.0, 1.0));
         vec3 lightDir = normalize(vec3(${SHADER_CONFIG.lightDirection.join(', ')}));
-        vec3 viewDir = vec3(0.0, 0.0, 1.0); // Looking straight down
+        vec3 viewDir = vec3(0.0, 0.0, 1.0);
         vec3 reflectDir = reflect(-lightDir, normal3D);
         float specular = pow(max(dot(viewDir, reflectDir), 0.0), ${SHADER_CONFIG.specularShininess.toFixed(1)});
-        col += vec3(1.0) * specular * ${SHADER_CONFIG.specularIntensity.toFixed(1)};
+        
+        // Reflejos más suaves y naturales
+        col += vec3(0.95, 0.97, 1.0) * specular * ${SHADER_CONFIG.specularIntensity.toFixed(2)};
 
-        float vignette = smoothstep(1.25, 0.2, length(uvn));
-        col *= 0.75 + 0.25 * vignette;
+        // --- Viñeta suave ---
+        float vignette = smoothstep(1.3, 0.25, length(uvn));
+        col *= 0.8 + 0.2 * vignette;
 
         gl_FragColor = vec4(col, 1.0);
       }
     `;
+
 
     const compile = (type, source) => {
       const shader = gl.createShader(type);
@@ -453,7 +480,11 @@ function RippleBackground({ enabled, sharedPointerRef }) {
     window.addEventListener('pointerup', onPointerUp, { passive: true });
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      // PERFORMANCE OPTIMIZATION:
+      // Cap DPR to 1.5 to reduce GPU load on Retina screens (iPad). 
+      // Rendering at native 2x/3x resolution generates excessive heat with this complex shader.
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      
       const w = Math.max(1, Math.floor(window.innerWidth * dpr));
       const h = Math.max(1, Math.floor(window.innerHeight * dpr));
       if (canvas.width !== w || canvas.height !== h) {
@@ -475,6 +506,7 @@ function RippleBackground({ enabled, sharedPointerRef }) {
       const now = performance.now();
       const t = (now - start) / 1000;
       const m = getMouseState();
+      
       gl.uniform1f(uTime, t);
       gl.uniform4f(uMouse, m.x, m.y, m.down, 0);
       gl.uniform1f(uVideoReady, videoReady ? 1 : 0);
@@ -699,6 +731,13 @@ export default function App() {
     setAppState(STATES.POEM);
   }, []);
 
+  const handleOpenGallery = useCallback((e) => {
+    e.stopPropagation();
+    if (recentPoems.length > 0) {
+      handleSelectHistoryPoem(recentPoems[0]);
+    }
+  }, [recentPoems, handleSelectHistoryPoem]);
+
   const isWritingIntro = appState === STATES.WRITING && writingStage === WRITING_STAGES.INTRO;
   const isWritingCanvas = appState === STATES.WRITING && writingStage === WRITING_STAGES.CANVAS;
   
@@ -730,6 +769,18 @@ export default function App() {
         >
           <div className="intro-title">Eres un poema</div>
           <div className="intro-cta">Pulsa para comenzar</div>
+          
+          {/* Gallery Link (Restored) */}
+          {!isPoemsLoading && recentPoems.length > 0 && (
+            <button 
+              className="btn btn-ghost" 
+              style={{ marginTop: '2rem', fontSize: '0.9rem', opacity: 0.8, zIndex: 10 }}
+              onPointerUp={(e) => { e.stopPropagation(); }}
+              onClick={handleOpenGallery}
+            >
+              Ver galería de poemas ({recentPoems.length})
+            </button>
+          )}
         </div>
       )}
 
@@ -741,6 +792,8 @@ export default function App() {
             isProcessing={false} 
             fullScreen 
             onStrokeUpdate={handleStrokeUpdate}
+            onOpenGallery={handleOpenGallery}
+            galleryCount={recentPoems.length}
           />
         </div>
       )}
