@@ -236,97 +236,80 @@ function RippleBackground({ enabled, sharedPointerRef }) {
       // ================================================
       // MAIN
       // ================================================
+      #define TAU 6.28318530718
+      #define MAX_ITER 5
+
       void main() {
-        vec2 fragCoord = gl_FragCoord.xy;
-        vec2 uv = fragCoord / uResolution.xy;
-        vec2 uvn = 2.0 * uv - vec2(1.0);
-
-        // Calcular altura y normal
-        float h = height(uvn, uTime);
-        vec2 n = normalV(uvn, uTime);
-        vec2 duv = n * ${SHADER_CONFIG.refractionStrength.toFixed(3)};
-
-        vec2 suv = vec2(1.0 - (uv.x + duv.x), uv.y + duv.y);
+        // --- 1. Calcular efecto de agua LIGHTWEIGHT (Caustics iterativo) ---
+        // Adapting "Water Caustics" shader logic
+        float time = uTime * .5 + 23.0;
+        vec2 uv = gl_FragCoord.xy / uResolution.xy;
         
-        // --- Aspect Ratio Correction & Zoom ---
-        float screenAspect = uResolution.x / uResolution.y;
-        float videoAspect = uVideoReady > 0.5 ? uVideoRes.x / uVideoRes.y : 1.77; 
-        
-        vec2 texScale = vec2(1.0);
-        if (screenAspect > videoAspect) {
-          texScale.y = videoAspect / screenAspect;
-        } else {
-          texScale.x = screenAspect / videoAspect;
+        // Coordenadas con ratio de aspecto para el efecto de agua
+        vec2 p = mod(uv * TAU, TAU) - 250.0;
+        vec2 i = vec2(p);
+        float c = 1.0;
+        float inten = .005;
+
+        for (int n = 0; n < MAX_ITER; n++) {
+          float t = time * (1.0 - (3.5 / float(n + 1)));
+          i = p + vec2(cos(t - i.x) + sin(t + i.y), sin(t - i.y) + cos(t + i.x));
+          c += 1.0 / length(vec2(p.x / (sin(i.x + t) / inten), p.y / (cos(i.y + t) / inten)));
         }
         
-        texScale *= ${SHADER_CONFIG.cameraZoom.toFixed(2)};
-        vec2 texUv = (suv - 0.5) * texScale + 0.5;
-        texUv = clamp(texUv, 0.0, 1.0);
+        c /= float(MAX_ITER);
+        c = 1.17 - pow(c, 1.4);
+        vec3 waterColour = vec3(pow(abs(c), 8.0));
+        waterColour = clamp(waterColour + vec3(0.0, 0.35, 0.5), 0.0, 1.0);
+
+        // --- 2. Integrar video de cámara (si está disponible) ---
+        vec3 finalColor;
         
-        // --- Radial Blur / Focus Effect (Optimized) ---
-        float distToCenter = length(uvn);
-        float radialBlur = smoothstep(${SHADER_CONFIG.focusRadius.toFixed(2)}, 1.15, distToCenter);
-        float blurStr = ${SHADER_CONFIG.baseBlur.toFixed(1)} + (radialBlur * ${SHADER_CONFIG.blurStrength.toFixed(1)});
-        
-        vec3 camCol;
-        
-        // Optimización: Reducir drásticamente el muestreo de blur para rendimiento móvil
-        // Usar solo 4 muestras en lugar de 8, o 0 si el blur es bajo
-        if (blurStr > 0.05) { 
-          vec3 acc = texture2D(uChannel0, texUv).rgb * 2.0; // Peso central reducido
-          float off = 0.003 * blurStr; // Offset un poco mayor para compensar menos muestras
+        if (uVideoReady > 0.5) {
+          // --- Aspect Ratio Calc ---
+          float screenAspect = uResolution.x / uResolution.y;
+          float videoAspect = uVideoRes.x / uVideoRes.y;
+          vec2 texScale = vec2(1.0);
           
-          // Solo 4 muestras diagonales
-          acc += texture2D(uChannel0, clamp(texUv + vec2(off, off), 0.0, 1.0)).rgb;
-          acc += texture2D(uChannel0, clamp(texUv + vec2(-off, off), 0.0, 1.0)).rgb;
-          acc += texture2D(uChannel0, clamp(texUv + vec2(off, -off), 0.0, 1.0)).rgb;
-          acc += texture2D(uChannel0, clamp(texUv + vec2(-off, -off), 0.0, 1.0)).rgb;
+          if (screenAspect > videoAspect) {
+             texScale.y = videoAspect / screenAspect;
+          } else {
+             texScale.x = screenAspect / videoAspect;
+          }
           
-          camCol = acc / 6.0;
+          // Center and Zoom
+          vec2 videoUv = (uv - 0.5) * texScale * 0.95 + 0.5; // Zoom out
+          
+          // Simple refraction based on the generated caustic pattern intensity
+          // Use 'c' (intensity) to offset UVs slightly
+          float distortStr = 0.015; // Distortion strength
+          videoUv += vec2(sin(c * 10.0 + time), cos(c * 10.0 + time)) * distortStr;
+
+          // Mirroring
+          videoUv.x = 1.0 - videoUv.x;
+          
+          videoUv = clamp(videoUv, 0.0, 1.0);
+          vec3 vidColor = texture2D(uChannel0, videoUv).rgb;
+          
+          // Blend Mode: Soft Overlay 
+          // Mix video with the water pattern
+          // We intensify the blue from the water pattern
+          finalColor = mix(vidColor, waterColour, 0.35); 
+          
+          // Extra color grading to match the "Deep Blue" aesthetic
+          finalColor = finalColor * vec3(0.85, 0.95, 1.1) + vec3(0.0, 0.05, 0.1); 
+
         } else {
-          camCol = texture2D(uChannel0, texUv).rgb;
+          // Fallback if no video
+          finalColor = waterColour;
         }
-        
-        // --- Color Grading Subacuático ---
-        camCol = (camCol - 0.5) * ${SHADER_CONFIG.contrast.toFixed(2)} + 0.55;
-        camCol += (${SHADER_CONFIG.brightness.toFixed(2)} - 1.0);
-        camCol.r *= 0.85; // Absorción de rojo
-        
-        // --- Variación de color según profundidad de onda ---
-        vec3 deepColor = vec3(${SHADER_CONFIG.waterTint.join(', ')});
-        vec3 shallowColor = vec3(${SHADER_CONFIG.shallowTint.join(', ')});
-        float depthFactor = clamp(h * ${SHADER_CONFIG.depthColorVariation.toFixed(2)} + 0.5, 0.0, 1.0);
-        vec3 waterColor = mix(deepColor, shallowColor, depthFactor);
-        
-        camCol = mix(camCol, waterColor, ${SHADER_CONFIG.tintIntensity.toFixed(2)});
-        
-        // --- Añadir cáusticas sutiles ---
-        float causticsVal = caustics(uv, uTime);
-        camCol += vec3(0.8, 0.9, 1.0) * causticsVal * 0.15;
-        
-        // --- Grano/Ruido sutil ---
-        float noise = (rand(uv + uTime * 0.1) - 0.5) * ${SHADER_CONFIG.noiseIntensity.toFixed(2)} * 2.0;
-        camCol += vec3(noise);
-        
-        camCol *= vec3(${SHADER_CONFIG.colorBalance.join(', ')});
-        
-        vec3 col = mix(baseColor(fract(suv)), camCol, step(0.5, uVideoReady));
 
-        // --- Reflejos Especulares ---
-        vec3 normal3D = normalize(vec3(-n.x * 4.0, -n.y * 4.0, 1.0));
-        vec3 lightDir = normalize(vec3(${SHADER_CONFIG.lightDirection.join(', ')}));
-        vec3 viewDir = vec3(0.0, 0.0, 1.0);
-        vec3 reflectDir = reflect(-lightDir, normal3D);
-        float specular = pow(max(dot(viewDir, reflectDir), 0.0), ${SHADER_CONFIG.specularShininess.toFixed(1)});
-        
-        // Reflejos más suaves y naturales
-        col += vec3(0.95, 0.97, 1.0) * specular * ${SHADER_CONFIG.specularIntensity.toFixed(2)};
+        // --- 3. Viñeta Suave ---
+        vec2 uvn = 2.0 * uv - 1.0;
+        float vignette = smoothstep(1.5, 0.5, length(uvn));
+        finalColor *= vignette;
 
-        // --- Viñeta suave ---
-        float vignette = smoothstep(1.3, 0.25, length(uvn));
-        col *= 0.8 + 0.2 * vignette;
-
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(finalColor, 1.0);
       }
     `;
 
