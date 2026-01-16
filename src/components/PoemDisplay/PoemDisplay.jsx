@@ -3,12 +3,9 @@ import { createPoemAudio, cleanupAudioUrl, isElevenLabsConfigured } from '../../
 import { uploadAudio, updatePoemAudio, isSupabaseConfigured } from '../../services/supabase';
 import './PoemDisplay.css';
 
-export default function PoemDisplay({ poem, emotion, illustration, poemId, existingAudioUrl, onNewPoem }) {
-  const illustrationUrlRef = useRef(null); // Track temp illustration URLs for cleanup
+export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, onNewPoem }) {
   const [visibleWords, setVisibleWords] = useState(0); 
   const [isAllComplete, setIsAllComplete] = useState(false);
-  const [isImageLoaded, setIsImageLoaded] = useState(false);
-  const [imgError, setImgError] = useState(false); // Track image loading error
   const [startTextAnimation, setStartTextAnimation] = useState(false);
   
   // Audio states
@@ -23,10 +20,8 @@ export default function PoemDisplay({ poem, emotion, illustration, poemId, exist
   const linesWithWords = lines.map(line => line.trim().split(/\s+/)); 
   const totalWords = linesWithWords.flat().length;
 
-  // Reset state - only when poem or illustration changes, NOT when audio changes
+  // Reset state - only when poem changes
   useEffect(() => {
-    setIsImageLoaded(false);
-    setImgError(false); // Reset error state
     setVisibleWords(0);
     setIsAllComplete(false);
     setStartTextAnimation(false);
@@ -41,30 +36,20 @@ export default function PoemDisplay({ poem, emotion, illustration, poemId, exist
     setAudioError(null);
     setIsAudioReady(false);
     
-    // Cleanup previous illustration Data URL if exists
-    if (illustrationUrlRef.current && illustrationUrlRef.current.startsWith('data:')) {
-      // Data URLs no necesitan revoke, pero rastreamos que fue limpiado
-      illustrationUrlRef.current = null;
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poem, illustration]); // Removido audioUrl de dependencias para evitar reset durante generación de audio
+  }, [poem]); 
 
   // Logic to start text animation
   useEffect(() => {
     if (!poem) return;
     
-    // If we have an illustration and no error yet, wait longer
-    // If no illustration OR error happened immediately, start faster
-    const hasValidImage = illustration && !imgError;
-    const delay = hasValidImage ? 1500 : 500;
-    
+    // Start almost immediately now
     const timer = setTimeout(() => {
         setStartTextAnimation(true);
-        if (hasValidImage) setIsImageLoaded(true);
-    }, delay);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [illustration, poem, imgError]);
+  }, [poem]);
 
   // Word revealing logic
   useEffect(() => {
@@ -260,46 +245,6 @@ export default function PoemDisplay({ poem, emotion, illustration, poemId, exist
         key={poem} /* Force re-render animation on poem change */
         className="poem-container"
       >
-        {/* Background Illustration Overlay */}
-        {illustration && !imgError && (
-          <div 
-            className="poem-bg-overlay"
-            style={{ 
-                backgroundImage: `url(${illustration})`,
-                opacity: isImageLoaded ? 0.4 : 0 
-            }}
-          />
-        )}
-        
-        {/* Hidden img to trigger load event */}
-        {illustration && !imgError && (
-             <img 
-                src={illustration} 
-                alt=""
-                style={{ display: 'none' }}
-                onLoad={() => setIsImageLoaded(true)}
-                onError={() => {
-                    console.warn('Image failed to load');
-                    setImgError(true);
-                    setStartTextAnimation(true);
-                }}
-             />
-        )}
-
-        <div className="flourish flourish-top">
-          <svg viewBox="0 0 160 24" fill="none" stroke="currentColor" className="flourish-svg">
-            {/* Elegant Calligraphic Line Left */}
-            <path d="M80 12c-10 0-15-6-25-6-12 0-20 8-35 8-10 0-15-4-20-4" strokeWidth="1" strokeLinecap="round"/>
-            {/* Elegant Calligraphic Line Right */}
-            <path d="M80 12c10 0 15-6 25-6 12 0 20 8 35 8 10 0 15-4 20 4" strokeWidth="1" strokeLinecap="round"/>
-          </svg>
-        </div>
-        
-        <div className="poem-emotion">
-          <span className="emotion-label">Inspirado en:</span>
-          <span className="emotion-word">{emotion.charAt(0).toUpperCase() + emotion.slice(1).toLowerCase()}</span>
-        </div>
-        
         <div className="poem-content">
           {linesWithWords.map((words, lineIndex) => (
             <p key={lineIndex} className="poem-text-line">
@@ -319,13 +264,6 @@ export default function PoemDisplay({ poem, emotion, illustration, poemId, exist
           ))}
         </div>
         
-        <div className={`flourish flourish-bottom ${isAllComplete ? 'visible' : 'hidden'}`}>
-          <svg viewBox="0 0 160 24" fill="none" stroke="currentColor" className="flourish-svg">
-             {/* Inverted curve for bottom */}
-             <path d="M80 12c-10 0-15 6-25 6-12 0-20-8-35-8-10 0-15 4-20 4" strokeWidth="1" strokeLinecap="round"/>
-             <path d="M80 12c10 0 15 6 25 6 12 0 20-8 35-8 10 0 15 4 20-4" strokeWidth="1" strokeLinecap="round"/>
-          </svg>
-        </div>
       </div>
       
       {/* Hidden audio element */}

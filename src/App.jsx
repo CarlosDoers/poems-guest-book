@@ -544,6 +544,9 @@ function RippleBackground({ enabled, sharedPointerRef }) {
 
 export default function App() {
   const [appState, setAppState] = useState(STATES.WRITING);
+  // FEATURE FLAG: Show gallery button on intro screen
+  const SHOW_GALLERY = false; 
+
   const [writingStage, setWritingStage] = useState(WRITING_STAGES.INTRO);
   const [poem, setPoem] = useState(null);
   const [illustration, setIllustration] = useState(null);
@@ -618,47 +621,17 @@ export default function App() {
       // Step 2: Generate Content
       console.log('✨ Generating poem & art...');
       
-      const poemPromise = generatePoem(recognizedText);
-      const illustrationPromise = generateIllustration(recognizedText);
-      
-      const [poemResult, illustrationResult] = await Promise.allSettled([
-        poemPromise,
-        illustrationPromise
-      ]);
+      const poemResult = await generatePoem(recognizedText);
       
       // Handle Poem
-      if (poemResult.status === 'fulfilled') {
-        const generatedPoem = poemResult.value;
+      if (poemResult) {
+        const generatedPoem = poemResult;
         
-        let displayUrl = null; // For showing now
-        let permanentUrl = null; // For saving to DB
-        let rawBase64 = null;
+        // No generating illustration anymore (Optimization)
+        let permanentUrl = null; 
 
         setPoem(generatedPoem);
-        
-        // Handle Illustration
-        if (illustrationResult.status === 'fulfilled' && illustrationResult.value) {
-          rawBase64 = illustrationResult.value;
-          // Create temp URL for immediate display
-          displayUrl = `data:image/png;base64,${rawBase64}`;
-          
-          console.log('🎨 Illustration ready for display');
-          setIllustration(displayUrl);
-          
-          // Preload temp image (already in memory but good practice)
-          try {
-            await new Promise((resolve) => {
-              const img = new Image();
-              img.onload = resolve;
-              img.onerror = resolve; 
-              img.src = displayUrl;
-            });
-          } catch (e) {
-            console.warn('Image preload failed', e);
-          }
-        } else {
-          setIllustration(null);
-        }
+        setIllustration(null);
         
         setAppState(STATES.POEM);
 
@@ -666,16 +639,12 @@ export default function App() {
         if (isSupabaseConfigured()) {
           (async () => {
             try {
-              // If we have an image, upload it first to get permanent URL
-              if (rawBase64) {
-                console.log('☁️ Uploading image to storage...');
-                permanentUrl = await uploadIllustration(rawBase64, recognizedText);
-              }
+              // No image upload needed
               
               const savedPoem = await savePoem({ 
                 emotion: recognizedText, 
                 poem: generatedPoem, 
-                illustration: permanentUrl // Null if failed or no image
+                illustration: null // No illustration
               });
               
               // Store poem ID for audio association
@@ -767,7 +736,7 @@ export default function App() {
           <div className="intro-cta">Pulsa para comenzar</div>
           
           {/* Gallery Link (Restored) */}
-          {!isPoemsLoading && recentPoems.length > 0 && (
+          {SHOW_GALLERY && !isPoemsLoading && recentPoems.length > 0 && (
             <button 
               className="btn btn-ghost" 
               style={{ marginTop: '2rem', fontSize: '0.9rem', opacity: 0.8, zIndex: 10 }}
