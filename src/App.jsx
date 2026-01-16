@@ -104,7 +104,7 @@ function RippleBackground({ enabled, sharedPointerRef }) {
     `;
 
     const fragSrc = `
-      precision highp float;
+      precision mediump float;
 
       uniform vec2 uResolution;
       uniform vec2 uVideoRes; 
@@ -113,139 +113,28 @@ function RippleBackground({ enabled, sharedPointerRef }) {
       uniform sampler2D uChannel0;
       uniform float uVideoReady;
 
-      // ================================================
-      // SIMPLEX NOISE - Para ondas orgánicas naturales
-      // ================================================
-      vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-      vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-      vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
-
-      float snoise(vec2 v) {
-        const vec4 C = vec4(0.211324865405187, 0.366025403784439,
-                           -0.577350269189626, 0.024390243902439);
-        vec2 i  = floor(v + dot(v, C.yy));
-        vec2 x0 = v - i + dot(i, C.xx);
-        vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-        vec4 x12 = x0.xyxy + C.xxzz;
-        x12.xy -= i1;
-        i = mod289(i);
-        vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
-        vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-        m = m*m; m = m*m;
-        vec3 x = 2.0 * fract(p * C.www) - 1.0;
-        vec3 h = abs(x) - 0.5;
-        vec3 ox = floor(x + 0.5);
-        vec3 a0 = x - ox;
-        m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
-        vec3 g;
-        g.x = a0.x * x0.x + h.x * x0.y;
-        g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-        return 130.0 * dot(m, g);
-      }
-
-      // Fractal Brownian Motion para ondas más complejas (Optimized: 2 octaves for better performance)
-      float fbm(vec2 p, float t) {
-        float f = 0.0;
-        float w = 0.5;
-        float noiseSpeed = ${SHADER_CONFIG.organicNoiseSpeed.toFixed(2)};
-        for (int i = 0; i < 2; i++) {
-          f += w * snoise(p + t * noiseSpeed);
-          p *= 2.0;
-          w *= 0.5;
-          noiseSpeed *= 0.8;
-        }
-        return f;
-      }
-
-      // ================================================
-      // FUNCIONES AUXILIARES
-      // ================================================
-      float rand(vec2 co) {
-        return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
-      }
-
-
-
-      // Cáusticas (patrones de luz bajo el agua)
-      float caustics(vec2 uv, float t) {
-        float scale = ${SHADER_CONFIG.causticsScale.toFixed(1)};
-        float speed = ${SHADER_CONFIG.causticsSpeed.toFixed(2)};
-        
-        vec2 p = uv * scale;
-        float c1 = snoise(p + t * speed);
-        float c2 = snoise(p * 1.5 - t * speed * 0.7 + vec2(1.7, 2.3));
-        float c3 = snoise(p * 2.0 + t * speed * 0.5 + vec2(3.1, 1.4));
-        
-        // Combinar para crear patrón de red de luz
-        float caustic = c1 * c2 * c3;
-        caustic = pow(abs(caustic), 0.5) * sign(caustic);
-        
-        return caustic * ${SHADER_CONFIG.causticsIntensity.toFixed(2)};
-      }
-
-      // ================================================
-      // FUNCIÓN PRINCIPAL DE ALTURA DE ONDA
-      // ================================================
-      float height(vec2 pos, float t) {
-        float speed = ${SHADER_CONFIG.baseWaveSpeed.toFixed(1)};
-        float amp = ${SHADER_CONFIG.waveAmplitude.toFixed(1)};
-        float freq = ${SHADER_CONFIG.waveFrequency.toFixed(1)};
-        float noiseScale = ${SHADER_CONFIG.organicNoiseScale.toFixed(1)};
-        float noiseStrength = ${SHADER_CONFIG.organicNoiseStrength.toFixed(2)};
-        
-        float w = 0.0;
-        
-        // === ONDAS ORGÁNICAS CON RUIDO SIMPLEX ===
-        // Capa base: ondas grandes y suaves con ruido
-        float noiseOffset = fbm(pos * noiseScale * 0.3, t * 0.2);
-        w += 0.45 * amp * sin(dot(pos + noiseOffset * 0.3, vec2(0.7, 0.4)) * freq + t * speed);
-        
-        // Capa secundaria: ondas cruzadas con variación
-        float noiseOffset2 = snoise(pos * noiseScale * 0.5 + t * 0.15);
-        w += 0.30 * amp * sin(dot(pos, vec2(-0.6, 0.8)) * (freq * 1.3) + t * speed * 0.9 + noiseOffset2 * 0.5);
-        
-        // Capa de turbulencia orgánica (reemplaza senos anidados)
-        w += noiseStrength * amp * fbm(pos * noiseScale, t * speed * 0.4);
-        
-        // === MICRO-ONDAS DE SUPERFICIE ===
-        float microWave = snoise(pos * 15.0 + t * ${SHADER_CONFIG.microWaveSpeed.toFixed(1)});
-        microWave += 0.5 * snoise(pos * 25.0 - t * ${SHADER_CONFIG.microWaveSpeed.toFixed(1)} * 1.3);
-        w += microWave * ${SHADER_CONFIG.microWaveIntensity.toFixed(2)} * amp;
-
-
-
-
-        
-        return w;
-      }
-
-      // Calcular normal de superficie
-      vec2 normalV(vec2 pos, float t) {
-        float e = 0.008; // Epsilon más pequeño para normales más suaves
-        return vec2(
-          height(pos - vec2(e, 0.0), t) - height(pos, t),
-          height(pos - vec2(0.0, e), t) - height(pos, t)
-        );
-      }
-
-      // Color de fondo (fallback simple sin cámara)
-      vec3 baseColor(vec2 uv) {
-        return vec3(0.02, 0.18, 0.42); // Color base del agua (Deep Blue)
-      }
-
-      // ================================================
-      // MAIN
-      // ================================================
       #define TAU 6.28318530718
-      #define MAX_ITER 5
+      #define MAX_ITER 4
 
       void main() {
-        // --- 1. Calcular efecto de agua LIGHTWEIGHT (Caustics iterativo) ---
-        // Adapting "Water Caustics" shader logic
         float time = uTime * .5 + 23.0;
         vec2 uv = gl_FragCoord.xy / uResolution.xy;
         
-        // Coordenadas con ratio de aspecto para el efecto de agua
+        // --- Interaction (Ripples) ---
+        // Simple distance-based distortion for performance
+        float interaction = 0.0;
+        if (uMouse.z > 0.0) {
+          vec2 aspect = vec2(uResolution.x / uResolution.y, 1.0);
+          vec2 uvCorr = uv * aspect;
+          vec2 mouseCorr = (uMouse.xy / uResolution.xy) * aspect;
+          float dist = distance(uvCorr, mouseCorr);
+          
+          // Create a ripple wave based on distance
+          float ripple = sin(dist * 60.0 - time * 8.0) * exp(-dist * 8.0);
+          interaction = ripple * 0.02; 
+        }
+
+        // --- Iterative Caustic Water Effect ---
         vec2 p = mod(uv * TAU, TAU) - 250.0;
         vec2 i = vec2(p);
         float c = 1.0;
@@ -261,12 +150,14 @@ function RippleBackground({ enabled, sharedPointerRef }) {
         c = 1.17 - pow(c, 1.4);
         vec3 waterColour = vec3(pow(abs(c), 8.0));
         waterColour = clamp(waterColour + vec3(0.0, 0.35, 0.5), 0.0, 1.0);
+        
+        // Add interaction to color slightly
+        waterColour += interaction * 2.0;
 
-        // --- 2. Integrar video de cámara (si está disponible) ---
+        // --- Video Integration ---
         vec3 finalColor;
         
         if (uVideoReady > 0.5) {
-          // --- Aspect Ratio Calc ---
           float screenAspect = uResolution.x / uResolution.y;
           float videoAspect = uVideoRes.x / uVideoRes.y;
           vec2 texScale = vec2(1.0);
@@ -278,12 +169,14 @@ function RippleBackground({ enabled, sharedPointerRef }) {
           }
           
           // Center and Zoom
-          vec2 videoUv = (uv - 0.5) * texScale * 0.95 + 0.5; // Zoom out
+          vec2 videoUv = (uv - 0.5) * texScale * 0.95 + 0.5;
           
-          // Simple refraction based on the generated caustic pattern intensity
-          // Use 'c' (intensity) to offset UVs slightly
-          float distortStr = 0.015; // Distortion strength
-          videoUv += vec2(sin(c * 10.0 + time), cos(c * 10.0 + time)) * distortStr;
+          // Refraction (Water + Interaction)
+          float distortStr = 0.015; 
+          vec2 totalDistortion = vec2(sin(c * 10.0 + time), cos(c * 10.0 + time)) * distortStr;
+          totalDistortion += interaction; // Add ripple distortion
+          
+          videoUv += totalDistortion;
 
           // Mirroring
           videoUv.x = 1.0 - videoUv.x;
@@ -291,20 +184,15 @@ function RippleBackground({ enabled, sharedPointerRef }) {
           videoUv = clamp(videoUv, 0.0, 1.0);
           vec3 vidColor = texture2D(uChannel0, videoUv).rgb;
           
-          // Blend Mode: Soft Overlay 
-          // Mix video with the water pattern
-          // We intensify the blue from the water pattern
+          // Blend Mode
           finalColor = mix(vidColor, waterColour, 0.35); 
-          
-          // Extra color grading to match the "Deep Blue" aesthetic
           finalColor = finalColor * vec3(0.85, 0.95, 1.1) + vec3(0.0, 0.05, 0.1); 
 
         } else {
-          // Fallback if no video
           finalColor = waterColour;
         }
 
-        // --- 3. Viñeta Suave ---
+        // Vignette
         vec2 uvn = 2.0 * uv - 1.0;
         float vignette = smoothstep(1.5, 0.5, length(uvn));
         finalColor *= vignette;
@@ -706,8 +594,8 @@ export default function App() {
   const isWritingIntro = appState === STATES.WRITING && writingStage === WRITING_STAGES.INTRO;
   const isWritingCanvas = appState === STATES.WRITING && writingStage === WRITING_STAGES.CANVAS;
   
-  // Enable Ripple/Water effect for all states except Error (optional)
-  const isRippleEnabled = appState !== STATES.ERROR;
+  // Enable Ripple/Water effect for all states
+  const isRippleEnabled = true;
 
   return (
     <div className={`app ${appState === STATES.POEM ? 'app-scrollable' : 'app-fixed'} ${isRippleEnabled ? 'app-fullscreen' : ''}`}>
@@ -797,7 +685,7 @@ export default function App() {
 
       {/* Error State */}
       {appState === STATES.ERROR && (
-        <div className="error-container animate-fade-in-up">
+        <div className="error-screen animate-fade-in-up">
           <div className="error-icon">😔</div>
           <h2>Algo salió mal</h2>
           <p>{error}</p>

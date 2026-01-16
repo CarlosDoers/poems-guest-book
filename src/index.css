@@ -19,9 +19,9 @@
   --color-paper: #0A3670;
   --color-text: #F0F4F8;
   --color-text-light: #B8C6DB;
-  --color-accent: #9B7952;
-  --color-accent-dark: #6D5339;
-  --color-accent-light: #C4B5A0;
+  --color-accent: #ffffff;
+  --color-accent-dark: #ffffff;
+  --color-accent-light: #ffffff;
   --color-ink: #1C1714;
   --color-shadow: rgba(43, 37, 32, 0.08);
   
@@ -203,11 +203,8 @@ body {
 /* Primary Button - Liquid Gold/Ink Effect */
 .btn-primary {
   /* Glassy Gradient */
-  background: linear-gradient(135deg, 
-    rgba(155, 121, 82, 0.9) 0%, 
-    rgba(196, 181, 160, 0.8) 100%
-  );
-  color: #fff;
+  background: #ffffff;
+  color: #000000;
   
   /* Frosting effect */
   backdrop-filter: blur(8px);
@@ -225,21 +222,10 @@ body {
 
 .btn-primary:active:not(:disabled) {
   transform: scale(0.98) translateY(1px);
-  box-shadow: 
-    0 2px 8px rgba(155, 121, 82, 0.15),
-    inset 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, 
-    rgba(168, 134, 94, 0.95) 0%, 
-    rgba(209, 194, 173, 0.9) 100%
-  );
-  box-shadow: 
-    0 6px 20px rgba(155, 121, 82, 0.25),
-    0 2px 6px rgba(0,0,0,0.1),
-    inset 0 1px 1px rgba(255,255,255,0.3);
-  transform: translateY(-1px);
+  background: #acb9fd;
 }
 
 .btn-primary:disabled {
