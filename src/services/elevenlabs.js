@@ -45,7 +45,6 @@ export async function generateSpeech(text, voiceId = VOICE_IDS.default) {
   }
 
   try {
-    console.log('🎙️ Generating speech with ElevenLabs...');
     
     const response = await fetch(`${ELEVENLABS_API_URL}/${voiceId}`, {
       method: 'POST',
