@@ -140,27 +140,30 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
       uniform float uVideoReady;
 
       #define TAU 6.28318530718
-      #define MAX_ITER 4
+      #define MAX_ITER 3
 
       void main() {
-        float time = uTime * .5 + 23.0;
+        lowp float time = uTime * .5 + 23.0;
         vec2 uv = gl_FragCoord.xy / uResolution.xy;
         
         // --- Interaction (Ripples) ---
         // Simple distance-based distortion for performance
-        float interaction = 0.0;
+        lowp float interaction = 0.0;
         if (uMouse.z > 0.0) {
           vec2 aspect = vec2(uResolution.x / uResolution.y, 1.0);
           vec2 uvCorr = uv * aspect;
           vec2 mouseCorr = (uMouse.xy / uResolution.xy) * aspect;
-          float dist = distance(uvCorr, mouseCorr);
+          lowp float dist = distance(uvCorr, mouseCorr);
           
           // Create a ripple wave based on distance
-          float ripple = sin(dist * 60.0 - time * 8.0) * exp(-dist * 8.0);
-          interaction = ripple * 0.02; 
+          if (dist < 0.5) {
+            lowp float ripple = sin(dist * 60.0 - time * 8.0) * exp(-dist * 8.0);
+            interaction = ripple * 0.02; 
+          }
         }
 
         // --- Iterative Caustic Water Effect ---
+        // Simplified version for mobile performance
         vec2 p = mod(uv * TAU, TAU) - 250.0;
         vec2 i = vec2(p);
         float c = 1.0;
@@ -174,7 +177,9 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
         
         c /= float(MAX_ITER);
         c = 1.17 - pow(c, 1.4);
-        vec3 waterColour = vec3(pow(abs(c), 8.0));
+        
+        // Optimized color selection
+        vec3 waterColour = vec3(pow(abs(c), 9.0));
         waterColour = clamp(waterColour + vec3(0.0, 0.35, 0.5), 0.0, 1.0);
         
         // Add interaction to color slightly
@@ -199,7 +204,7 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
           
           // Refraction (Water + Interaction)
           float distortStr = 0.015; 
-          vec2 totalDistortion = vec2(sin(c * 10.0 + time), cos(c * 10.0 + time)) * distortStr;
+          vec2 totalDistortion = vec2(sin(c * 5.0 + time), cos(c * 5.0 + time)) * distortStr;
           totalDistortion += interaction; // Add ripple distortion
           
           videoUv += totalDistortion;
@@ -378,12 +383,24 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
 
     const resize = () => {
       // PERFORMANCE OPTIMIZATION:
-      // Cap DPR strictly to 1.0 for mobile/iPad to prevent overheating and battery drain.
-      // Rendering at > 1.0 with complex shaders is too heavy for sustained usage on mobile.
-      // Check for touch capability and screen width to target iPads (including 12.9" Pro in landscape)
+      // Cap DPR strictly to 1.0 or lower for mobile/iPad to prevent overheating.
+      // 11-inch iPad at native res is still too many pixels.
       const isMobile = (window.innerWidth <= 1366 && (navigator.maxTouchPoints > 0 || 'ontouchstart' in window));
-      const maxDpr = isMobile ? 1.0 : 1.5;
-      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+      
+      // We use a base DPR but on mobile we might want to render at a fraction of the screen
+      // to keep pixel count manageable (e.g. max 960px width/height)
+      let dpr = window.devicePixelRatio || 1;
+      if (isMobile) {
+        const maxDimension = 960;
+        const currentMax = Math.max(window.innerWidth, window.innerHeight);
+        if (currentMax > maxDimension) {
+            dpr = maxDimension / currentMax;
+        } else {
+            dpr = 1.0;
+        }
+      } else {
+        dpr = Math.min(dpr, 1.5);
+      }
       
       const w = Math.max(1, Math.floor(window.innerWidth * dpr));
       const h = Math.max(1, Math.floor(window.innerHeight * dpr));
