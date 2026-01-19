@@ -54,7 +54,7 @@ export async function generatePoemMultimodal(canvasBase64, faceBase64) {
             2. EXPRESIÓN FACIAL: La emoción en su rostro (si hay foto).
 
             INSTRUCCIONES CLAVE DE ANÁLISIS:
-            - Si hay TEXTO LLEGIBLE: La emoción del poema debe basarse PRIMORDIALMENTE en el significado de esa palabra.
+            - Si hay TEXTO LEGIBLE: La emoción del poema debe basarse PRIMORDIALMENTE en el significado de esa palabra.
             - Si hay un DIBUJO FIGURATIVO (ej: casa, sol, árbol): Interpreta el simbolismo de ese objeto junto con el estilo del trazo.
             - Si son TRAZOS ABSTRACTOS: Analiza la energía cinética (caos=ansiedad, curvas=calma).
 
@@ -64,6 +64,7 @@ export async function generatePoemMultimodal(canvasBase64, faceBase64) {
             - "poem": Un poema breve (4-5 versos cortos) inspirado en esa emoción y en el simbolismo detectado. 
             
             Reglas para el poema:
+            - VERSOS BREVES Y CONCISOS: Mantén cada línea corta (máximo 5-6 palabras), priorizando la economía de lenguaje.
             - Relaciona la emoción con un detalle de la naturaleza (igual que antes: botánica, luz, agua).
             - Exalta lo bello y sensorial.
             - Evita mencionar explícitamente "tu cara", "tu letra" o "tu dibujo".
