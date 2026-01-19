@@ -1,7 +1,7 @@
 /* ===== GOOGLE FONTS - Elegant Typography ===== */
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,400;1,500;1,600&family=Crimson+Text:ital,wght@0,400;0,600;1,200;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-@import url('https://fonts.googleapis.com/css2?family=Mr+Bedfort&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 
 /* ===== CSS RESET & BASE ===== */
 *, *::before, *::after {
@@ -56,7 +56,7 @@
   
   /* Typography */
   --font-cursive: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-  --font-handwriting: 'Mr Bedfort', Georgia, Palatino, 'Book Antiqua', serif;
+  --font-handwriting: 'Roboto', Georgia, Palatino, 'Book Antiqua', serif;
   --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   
   /* Spacing */
@@ -149,10 +149,10 @@ body {
 
 /* ===== TYPOGRAPHY ===== */
 .title {
-  font-family: var(--font-cursive);
+  font-family: var(--font-sans);
   font-size: clamp(2rem, 5vw, 3.5rem);
   font-style: italic;
-  font-weight: 500;
+  font-weight: 300;
   color: var(--color-accent);
   text-align: center;
   margin-bottom: var(--spacing-sm);

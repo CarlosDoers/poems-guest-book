@@ -14,7 +14,7 @@ const debounce = (func, wait) => {
   };
 };
 
-export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onOpenGallery, galleryCount = 0 }) {
+export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onOpenGallery, galleryCount = 0, onInteractionStart }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -127,6 +127,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     // Update shader
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
     
+    // Notify parent interaction started (to hide intro overlays)
+    if (onInteractionStart) onInteractionStart();
+    
     const ctx = contextRef.current;
     if (!ctx) return; // Safety check: context might not be initialized
     
@@ -137,7 +140,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     setIsDrawing(true);
     setHasContent(true);
-  }, [getPointerPosition, onStrokeUpdate]);
+  }, [getPointerPosition, onStrokeUpdate, onInteractionStart]);
 
   const draw = useCallback((e) => {
     if (!isDrawing) return;

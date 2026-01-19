@@ -56,7 +56,7 @@
     color: rgba(255, 255, 255, 0.98);
     /* Stronger shadow for readability against dynamic background */
     text-shadow: 0 2px 4px rgba(0,0,0,0.7);
-    font-weight: 500;
+    font-weight: 300;
 }
 
 /* Efecto "emerger del agua" - más orgánico */
@@ -89,15 +89,15 @@
 
 /* Line Animation Styles */
 .poem-text-line {
-  font-family: var(--font-handwriting);
-  font-size: 2rem;
+  font-family: var(--font-sans);
+  font-size: 2.2rem;
   font-weight: 200;
-  font-style: italic;
   line-height: 1.4;
   color: var(--color-ink);
   text-align: center;
   margin: 0.5rem 0;
   letter-spacing: 0.01em;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.7);
 }
 
 /* Individual word animation - Efecto "emergiendo del agua" */
@@ -185,9 +185,8 @@
 
 .emotion-word {
   display: block;
-  font-family: var(--font-cursive);
-  font-style: italic;
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-weight: 300;
   font-size: 3.2rem;
   color: var(--color-accent);
   letter-spacing: 0.03em;

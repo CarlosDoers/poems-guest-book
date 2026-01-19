@@ -642,44 +642,45 @@ export default function App() {
       )}
 
       {/* Writing State */}
+      {/* Writing State - Canvas always active in background to capture first stroke */}
+      {appState === STATES.WRITING && (
+          <div className="writing-screen">
+            {/* Hint only shows when actively writing (not in intro overlay) */}
+            {isWritingCanvas && (
+                 <div className="writing-hint">Usa el boli para escribir una emoción</div>
+             )}
+            
+            <WritingCanvas 
+              onSubmit={handleCanvasSubmit} 
+              isProcessing={false} 
+              fullScreen 
+              onStrokeUpdate={handleStrokeUpdate}
+              onOpenGallery={handleOpenGallery}
+              galleryCount={recentPoems.length}
+              onInteractionStart={handleStartWriting}
+            />
+          </div>
+      )}
+
+      {/* Intro Overlay - Text on top, passes clicks to canvas below */}
       {isWritingIntro && (
         <div
           className="intro-screen"
-          role="button"
-          tabIndex={0}
-          onPointerUp={handleStartWriting}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') handleStartWriting();
-          }}
+          style={{ pointerEvents: 'none', position: 'absolute', inset: 0 }}
         >
           <div className="intro-title">Eres un poema</div>
-          <div className="intro-cta">Pulsa para comenzar</div>
+          <div className="intro-cta">Toca para comenzar</div>
           
-          {/* Gallery Link (Restored) */}
+          {/* Gallery Link (Restored) - Needs pointer events enabled specifically */}
           {SHOW_GALLERY && !isPoemsLoading && recentPoems.length > 0 && (
             <button 
               className="btn btn-ghost" 
-              style={{ marginTop: '2rem', fontSize: '0.9rem', opacity: 0.8, zIndex: 10 }}
-              onPointerUp={(e) => { e.stopPropagation(); }}
+              style={{ marginTop: '2rem', fontSize: '0.9rem', opacity: 0.8, zIndex: 10, pointerEvents: 'auto' }}
               onClick={handleOpenGallery}
             >
               Ver galería de poemas ({recentPoems.length})
             </button>
           )}
-        </div>
-      )}
-
-      {isWritingCanvas && (
-        <div className="writing-screen">
-          <div className="writing-hint">Usa el boli para escribir una emoción</div>
-          <WritingCanvas 
-            onSubmit={handleCanvasSubmit} 
-            isProcessing={false} 
-            fullScreen 
-            onStrokeUpdate={handleStrokeUpdate}
-            onOpenGallery={handleOpenGallery}
-            galleryCount={recentPoems.length}
-          />
         </div>
       )}
 
