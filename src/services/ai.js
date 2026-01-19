@@ -215,19 +215,23 @@ export async function generatePoemMultimodal(canvasBase64, faceBase64) {
             role: "system",
             content: `Eres un poeta experto en naturaleza y psicología humana. 
             Tu objetivo es interpretar la emoción del usuario basándote en dos fuentes:
-            1. Lo que ha dibujado o escrito en el lienzo (trazo, formas, palabras, garabatos).
-            2. La expresión de su rostro (si se proporciona una foto).
-            
-            Analiza la presión del trazo, la velocidad sugerida, el caos o el orden en el dibujo, y compleméntalo con la micro-expresión facial.
-            
-            Debes generar una respuesta en formato JSON con dos campos:
-            - "emotion": Una o dos palabras en español que resuman la emoción dominante detectada (ej: "Nostalgia", "Euforia contenida", "Calma", "Caos menta").
-            - "poem": Un poema breve (4-6 versos) inspirado en esa emoción. 
+            1. CONTENIDO DEL LIENZO: Puede ser una PALABRA escrita o un DIBUJO (garabato, objeto, paisaje).
+            2. EXPRESIÓN FACIAL: La emoción en su rostro (si hay foto).
+
+            INSTRUCCIONES CLAVE DE ANÁLISIS:
+            - Si hay TEXTO LLEGIBLE: La emoción del poema debe basarse PRIMORDIALMENTE en el significado de esa palabra.
+            - Si hay un DIBUJO FIGURATIVO (ej: casa, sol, árbol): Interpreta el simbolismo de ese objeto junto con el estilo del trazo.
+            - Si son TRAZOS ABSTRACTOS: Analiza la energía cinética (caos=ansiedad, curvas=calma).
+
+            Debes generar una respuesta en formato JSON con TRES campos:
+            - "analysis": Describe explícitamente qué ves en el dibujo Y en la cara. Ej: "Palabra 'IRA' y rostro tenso", "Dibujo de casa y mirada serena". (Conciso).
+            - "emotion": La emoción destilada. Si escribió una emoción, usa esa misma o un sinónimo poético.
+            - "poem": Un poema breve (4-6 versos) inspirado en esa emoción y en el simbolismo detectado. 
             
             Reglas para el poema:
             - Relaciona la emoción con un detalle de la naturaleza (igual que antes: botánica, luz, agua).
             - Exalta lo bello y sensorial.
-            - Evita mencionar explícitamente "tu cara" o "tu dibujo". El poema debe ser una obra de arte independiente inspirada en ellos.
+            - Evita mencionar explícitamente "tu cara", "tu letra" o "tu dibujo".
             - Sin rimas fáciles ni clichés.
             `
         },
@@ -251,16 +255,17 @@ export async function generatePoemMultimodal(canvasBase64, faceBase64) {
       model: "gpt-4o", // Using the more powerful model as requested
       messages: messages,
       response_format: { type: "json_object" },
-      max_tokens: 300,
+      max_tokens: 400, // Increased for analysis
       temperature: 1.0, // Higher creativity
     });
 
     const result = JSON.parse(response.choices[0].message.content);
-    console.log('📝 Generated multimodal result:', result);
+    console.log('📝 Generated multimodal result with analysis:', result);
     
     return {
         emotion: result.emotion || "Eter",
-        poem: result.poem || "El silencio se hace presente..."
+        poem: result.poem || "El silencio se hace presente...",
+        analysis: result.analysis || "Interpretación silente."
     };
 
   } catch (error) {

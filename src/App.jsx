@@ -6,7 +6,7 @@ import { generatePoem, recognizeEmotionFromImage, generateIllustration, isOpenAI
 // Lazy load heavy components
 const PoemDisplay = lazy(() => import('./components/PoemDisplay/PoemDisplay'));
 const PoemCarousel = lazy(() => import('./components/PoemCarousel/PoemCarousel'));
-import { savePoem, getRecentPoems, isSupabaseConfigured, uploadIllustration } from './services/supabase';
+import { savePoem, getRecentPoems, isSupabaseConfigured, uploadIllustration, uploadPoemInputImage } from './services/supabase';
 import { isElevenLabsConfigured } from './services/elevenlabs';
 
 // App states
@@ -460,7 +460,9 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
 export default function App() {
   const [appState, setAppState] = useState(STATES.WRITING);
   // FEATURE FLAG: Show gallery button on intro screen
-  const SHOW_GALLERY = false; 
+  const SHOW_GALLERY = true; 
+  // FEATURE FLAG: Show history carousel
+  const SHOW_CAROUSEL = true; 
 
   const [writingStage, setWritingStage] = useState(WRITING_STAGES.INTRO);
   const [poem, setPoem] = useState(null);
@@ -528,7 +530,11 @@ export default function App() {
       let faceSnapshot = null;
       if (backgroundRef.current) {
         faceSnapshot = backgroundRef.current.getSnapshot();
-        if (faceSnapshot) console.log('📸 Face captured for analysis');
+        if (faceSnapshot) {
+            console.log(`📸 Face captured successfully! Size: ${Math.round(faceSnapshot.length / 1024)} KB`);
+        } else {
+            console.log('⚠️ No face captured (Snapshot returned null)');
+        }
       }
 
       // Step 2: Generate Multimodal Poem
@@ -537,41 +543,41 @@ export default function App() {
       
       // Handle Poem
       if (result && result.poem) {
+        if (result.analysis) {
+            console.log('🧠 AI Interpretation:', result.analysis);
+        }
         const recognizedEmotion = result.emotion;
         const generatedPoem = result.poem;
         setEmotion(recognizedEmotion);
-        
-        // No generating illustration anymore (Optimization)
-        let permanentUrl = null; 
-
         setPoem(generatedPoem);
-        setIllustration(null);
-        
         setAppState(STATES.POEM);
+        
+        // Step 2b: Upload Canvas Input (Drawing/Text)
+        let savedImageUrl = null;
+        if (imageData && isSupabaseConfigured()) {
+             console.log('⬆️ Uploading canvas input image...');
+             // imageData is already a DataURL (JPEG) from the canvas submission
+            savedImageUrl = await uploadPoemInputImage(imageData, recognizedEmotion);
+        }
 
         // Step 3: Upload & Save (non-blocking for UI, but blocking for DB consistency)
         if (isSupabaseConfigured()) {
           (async () => {
-            try {
-              // No image upload needed
-              
-              const savedPoem = await savePoem({ 
-                emotion: recognizedEmotion, 
-                poem: generatedPoem, 
-                illustration: null // No illustration
-              });
-              
-              // Store poem ID for audio association
-              if (savedPoem?.id) {
-                setPoemId(savedPoem.id);
+             try {
+                const savedPoem = await savePoem({ 
+                    emotion: recognizedEmotion, 
+                    poem: generatedPoem, 
+                    illustration: savedImageUrl, // Save canvas drawing URL
+                    model: 'gpt-4o' 
+                });
                 
-                // Optimización: agregar nuevo poema al state en lugar de recargar todos
-                setRecentPoems(prev => [savedPoem, ...prev].slice(0, 20));
-              }
-            } catch (error) {
-              console.error('Failed to save poem to database:', error);
-              // No bloqueamos la UI, el poema ya se muestra
-            }
+                if (savedPoem?.id) {
+                    setPoemId(savedPoem.id);
+                    setRecentPoems(prev => [savedPoem, ...prev].slice(0, 20));
+                }
+             } catch (err) {
+                 console.error('Failed to save poem:', err);
+             }
           })();
         }
       } else {
@@ -699,7 +705,7 @@ export default function App() {
       )}
 
       {/* History Carousel - Visible in Writing and Poem states */}
-      {appState === STATES.POEM && (recentPoems.length > 0 || isPoemsLoading) && (
+      {SHOW_CAROUSEL && appState === STATES.POEM && (recentPoems.length > 0 || isPoemsLoading) && (
         <Suspense fallback={null}>
           <PoemCarousel 
             poems={recentPoems} 

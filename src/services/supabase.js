@@ -65,7 +65,7 @@ export function isSupabaseConfigured() {
  * @param {string} [data.sessionId] - Optional session ID for tracking
  * @returns {Promise<Object>} - The saved record
  */
-export async function savePoem({ emotion, poem, illustration = null, audioUrl = null, sessionId = null }) {
+export async function savePoem({ emotion, poem, illustration = null, audioUrl = null, sessionId = null, model = 'gpt-4o' }) {
   const supabase = getSupabase();
   
   if (!supabase) {
@@ -90,7 +90,7 @@ export async function savePoem({ emotion, poem, illustration = null, audioUrl = 
           app_id: currentAppId,
           session_id: sessionId,
           language: 'es',
-          ai_model: 'gpt-4o-mini'
+          ai_model: model
         }
       ])
       .select()
@@ -297,6 +297,50 @@ export async function uploadIllustration(base64Data, emotion) {
 
   } catch (error) {
     console.error('❌ Error uploading illustration:', error);
+    return null;
+  }
+}
+
+
+/**
+ * Upload a poem input image (DataURL) to Supabase Storage
+ * @param {string} dataUrl - Data URL string (data:image/jpeg;base64,...)
+ * @param {string} emotion - Emotion for filename
+ * @returns {Promise<string|null>} - Permanent Public URL
+ */
+export async function uploadPoemInputImage(dataUrl, emotion) {
+  const supabase = getSupabase();
+  if (!supabase) return null; 
+
+  try {
+    const timestamp = Date.now();
+    const safeName = (emotion || 'input').trim().toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const filename = `input-${timestamp}-${safeName}.jpg`;
+
+    // 1. Convert DataURL to Blob
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+
+    // 2. Upload to 'illustrations' bucket
+    const { error: uploadError } = await supabase.storage
+      .from('illustrations')
+      .upload(filename, blob, {
+        contentType: 'image/jpeg',
+        upsert: false
+      });
+
+    if (uploadError) throw uploadError;
+
+    // 3. Get Public URL
+    const { data } = supabase.storage
+      .from('illustrations')
+      .getPublicUrl(filename);
+
+    console.log('✅ Input image uploaded permanent URL:', data.publicUrl);
+    return data.publicUrl;
+
+  } catch (error) {
+    console.error('❌ Error uploading input image:', error);
     return null;
   }
 }

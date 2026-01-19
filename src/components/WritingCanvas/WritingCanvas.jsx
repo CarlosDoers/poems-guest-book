@@ -285,7 +285,24 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     if (!hasContent || isProcessing) return;
     
     const canvas = canvasRef.current;
-    const imageData = canvas.toDataURL('image/png');
+    
+    // Create a temporary canvas to composite against a black background
+    // (Since our strokes are white/light on transparent, OpenAI might see white-on-white)
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tCtx = tempCanvas.getContext('2d');
+    
+    // Fill with black
+    tCtx.fillStyle = '#000000';
+    tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // Draw original drawing on top
+    tCtx.drawImage(canvas, 0, 0);
+    
+    // Export as JPEG (smaller, good for photos/vision)
+    const imageData = tempCanvas.toDataURL('image/jpeg', 0.85); // High quality for text/lines
+    
     onSubmit(imageData);
   }, [hasContent, isProcessing, onSubmit]);
 
@@ -346,17 +363,6 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
               )}
             </button>
           </div>
-        )}
-        
-        {/* Gallery Link */}
-        {galleryCount > 0 && onOpenGallery && (
-          <button 
-            className="btn btn-ghost" 
-            style={{ fontSize: '0.9rem', opacity: 0.8 }}
-            onClick={onOpenGallery}
-          >
-            Ver galería de poemas ({galleryCount})
-          </button>
         )}
       </div>
     </div>
