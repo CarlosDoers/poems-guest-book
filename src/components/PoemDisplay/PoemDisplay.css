@@ -18,7 +18,7 @@
   z-index: 1;
   /* Removed background and border for direct-on-shader look */
   background: transparent;
-  padding: var(--spacing-lg) var(--spacing-lg);
+  padding: var(--spacing-md);
   overflow: visible;
   
   text-align: center;
@@ -28,7 +28,7 @@
   min-height: 500px;
   display: flex;
   flex-direction: column;
-  margin-bottom: var(--spacing-lg); /* Space for scroll */
+  margin-bottom: var(--spacing-md); /* Space for scroll */
   
   /* Entrance Animation */
   animation: paper-entrance 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
@@ -199,7 +199,6 @@
 .poem-actions-external {
   margin-top: var(--spacing-lg);
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: var(--spacing-sm);
   justify-content: center;
