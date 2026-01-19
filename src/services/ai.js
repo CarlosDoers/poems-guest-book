@@ -193,3 +193,78 @@ export async function generateIllustration(emotion) {
     return null;
   }
 }
+
+/**
+ * Generate a poem based on multimodal input (canvas drawing + face image)
+ * @param {string} canvasBase64 - Base64 image of the canvas
+ * @param {string} faceBase64 - Base64 image of the user's face (optional)
+ * @returns {Promise<{emotion: string, poem: string}>} - The detected emotion and generated poem
+ */
+export async function generatePoemMultimodal(canvasBase64, faceBase64) {
+  const openai = getOpenAI();
+  
+  if (!openai) {
+    throw new Error('Error de configuración: La API key de OpenAI no está configurada.');
+  }
+  
+  try {
+    console.log('✨ Generating poem from multimodal input...');
+    
+    const messages = [
+        {
+            role: "system",
+            content: `Eres un poeta experto en naturaleza y psicología humana. 
+            Tu objetivo es interpretar la emoción del usuario basándote en dos fuentes:
+            1. Lo que ha dibujado o escrito en el lienzo (trazo, formas, palabras, garabatos).
+            2. La expresión de su rostro (si se proporciona una foto).
+            
+            Analiza la presión del trazo, la velocidad sugerida, el caos o el orden en el dibujo, y compleméntalo con la micro-expresión facial.
+            
+            Debes generar una respuesta en formato JSON con dos campos:
+            - "emotion": Una o dos palabras en español que resuman la emoción dominante detectada (ej: "Nostalgia", "Euforia contenida", "Calma", "Caos menta").
+            - "poem": Un poema breve (4-6 versos) inspirado en esa emoción. 
+            
+            Reglas para el poema:
+            - Relaciona la emoción con un detalle de la naturaleza (igual que antes: botánica, luz, agua).
+            - Exalta lo bello y sensorial.
+            - Evita mencionar explícitamente "tu cara" o "tu dibujo". El poema debe ser una obra de arte independiente inspirada en ellos.
+            - Sin rimas fáciles ni clichés.
+            `
+        },
+        {
+            role: "user",
+            content: [
+                { type: "text", text: "Analiza mi estado y crea un poema." },
+                { type: "image_url", image_url: { url: canvasBase64, detail: "low" } }
+            ]
+        }
+    ];
+
+    if (faceBase64) {
+        messages[1].content.push({ 
+            type: "image_url", 
+            image_url: { url: faceBase64, detail: "low" } 
+        });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // Using the more powerful model as requested
+      messages: messages,
+      response_format: { type: "json_object" },
+      max_tokens: 300,
+      temperature: 1.0, // Higher creativity
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    console.log('📝 Generated multimodal result:', result);
+    
+    return {
+        emotion: result.emotion || "Eter",
+        poem: result.poem || "El silencio se hace presente..."
+    };
+
+  } catch (error) {
+    console.error('❌ OpenAI Multimodal Error:', error);
+    throw new Error('No pude conectarme con la musa. Inténtalo de nuevo.');
+  }
+}

@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, lazy, Suspense, useRef } from 'react';
+import { useState, useCallback, useEffect, lazy, Suspense, useRef, forwardRef, useImperativeHandle } from 'react';
 import WritingCanvas from './components/WritingCanvas/WritingCanvas';
 import Loader from './components/Loader/Loader';
-import { generatePoem, recognizeEmotionFromImage, generateIllustration, isOpenAIConfigured } from './services/ai';
+import { generatePoem, recognizeEmotionFromImage, generateIllustration, isOpenAIConfigured, generatePoemMultimodal } from './services/ai';
 
 // Lazy load heavy components
 const PoemDisplay = lazy(() => import('./components/PoemDisplay/PoemDisplay'));
@@ -83,8 +83,34 @@ const SHADER_CONFIG = {
   baseBlur: 0.6               // Desenfoque base en toda la imagen
 };
 
-function RippleBackground({ enabled, sharedPointerRef }) {
+const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
   const canvasRef = useRef(null);
+  const videoRef = useRef(null);
+
+  useImperativeHandle(ref, () => ({
+    getSnapshot: () => {
+      // Capture a frame from the video stream if available
+      if (!videoRef.current || videoRef.current.readyState < 2) return null;
+      try {
+          const v = videoRef.current;
+          const c = document.createElement('canvas');
+          c.width = v.videoWidth || 640;
+          c.height = v.videoHeight || 480;
+          const ctx = c.getContext('2d');
+          
+          // Mirror the image to match user experience
+          ctx.translate(c.width, 0);
+          ctx.scale(-1, 1);
+          
+          ctx.drawImage(v, 0, 0, c.width, c.height);
+          // Return JPEG for smaller payload than PNG
+          return c.toDataURL('image/jpeg', 0.8); 
+      } catch(e) {
+          console.error("Snapshot failed", e);
+          return null;
+      }
+    }
+  }));
 
   useEffect(() => {
     if (!enabled) return;
@@ -250,6 +276,7 @@ function RippleBackground({ enabled, sharedPointerRef }) {
 
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     const video = document.createElement('video');
+    videoRef.current = video;
     
     // Critical for iOS
     video.setAttribute('playsinline', '');
@@ -428,7 +455,7 @@ function RippleBackground({ enabled, sharedPointerRef }) {
   if (!enabled) return null;
 
   return <canvas ref={canvasRef} className="ripple-bg" aria-hidden="true" />;
-}
+});
 
 export default function App() {
   const [appState, setAppState] = useState(STATES.WRITING);
@@ -447,6 +474,7 @@ export default function App() {
 
   // Shared pointer state for water ripple effect
   const sharedPointerRef = useRef({ x: 0, y: 0, down: 0 });
+  const backgroundRef = useRef(null); // Reference to capture video snapshot
 
   const handleStrokeUpdate = useCallback((x, y, isDown) => {
     if (sharedPointerRef.current) {
@@ -496,24 +524,22 @@ export default function App() {
       setError(null);
       setIllustration(null);
       
-      // Step 1: Vision AI - Recognize the handwriting
-      console.log('👁️ Reading handwriting...');
-      const recognizedText = await recognizeEmotionFromImage(imageData);
-      
-      if (!recognizedText) {
-        throw new Error('No se pudo reconocer ninguna emoción. Intenta escribir más claro.');
+      // Step 1: Capture Face (if available)
+      let faceSnapshot = null;
+      if (backgroundRef.current) {
+        faceSnapshot = backgroundRef.current.getSnapshot();
+        if (faceSnapshot) console.log('📸 Face captured for analysis');
       }
-      
-      setEmotion(recognizedText);
-      
-      // Step 2: Generate Content
-      console.log('✨ Generating poem & art...');
-      
-      const poemResult = await generatePoem(recognizedText);
+
+      // Step 2: Generate Multimodal Poem
+      console.log('✨ Generating poem from stroke + face (Multimodal)...');
+      const result = await generatePoemMultimodal(imageData, faceSnapshot);
       
       // Handle Poem
-      if (poemResult) {
-        const generatedPoem = poemResult;
+      if (result && result.poem) {
+        const recognizedEmotion = result.emotion;
+        const generatedPoem = result.poem;
+        setEmotion(recognizedEmotion);
         
         // No generating illustration anymore (Optimization)
         let permanentUrl = null; 
@@ -530,7 +556,7 @@ export default function App() {
               // No image upload needed
               
               const savedPoem = await savePoem({ 
-                emotion: recognizedText, 
+                emotion: recognizedEmotion, 
                 poem: generatedPoem, 
                 illustration: null // No illustration
               });
@@ -599,7 +625,7 @@ export default function App() {
 
   return (
     <div className={`app ${appState === STATES.POEM ? 'app-scrollable' : 'app-fixed'} ${isRippleEnabled ? 'app-fullscreen' : ''}`}>
-      <RippleBackground enabled={isRippleEnabled} sharedPointerRef={sharedPointerRef} />
+      <RippleBackground ref={backgroundRef} enabled={isRippleEnabled} sharedPointerRef={sharedPointerRef} />
       {/* Configuration Warnings */}
       {configWarnings.length > 0 && appState === STATES.WRITING && !isRippleEnabled && (
         <div className="config-warnings">
