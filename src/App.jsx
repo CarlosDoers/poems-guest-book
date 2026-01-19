@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect, lazy, Suspense, useRef, forwardRef, useImperativeHandle } from 'react';
 import WritingCanvas from './components/WritingCanvas/WritingCanvas';
 import Loader from './components/Loader/Loader';
-import { generatePoem, recognizeEmotionFromImage, generateIllustration, isOpenAIConfigured, generatePoemMultimodal } from './services/ai';
+import { isOpenAIConfigured, generatePoemMultimodal } from './services/ai';
 
 // Lazy load heavy components
 const PoemDisplay = lazy(() => import('./components/PoemDisplay/PoemDisplay'));
 const PoemCarousel = lazy(() => import('./components/PoemCarousel/PoemCarousel'));
-import { savePoem, getRecentPoems, isSupabaseConfigured, uploadIllustration, uploadPoemInputImage } from './services/supabase';
+import { savePoem, getRecentPoems, isSupabaseConfigured, uploadPoemInputImage } from './services/supabase';
 import { isElevenLabsConfigured } from './services/elevenlabs';
 
 // App states

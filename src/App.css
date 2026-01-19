@@ -126,7 +126,7 @@
 }
 
 .intro-title {
-  font-family: var(--font-handwriting);
+  font-family: var(--font-script);
   font-size: clamp(2.8rem, 7vw, 5.2rem);
   font-style: italic;
   font-weight: 500;

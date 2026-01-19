@@ -1,7 +1,7 @@
 /* ===== GOOGLE FONTS - Elegant Typography ===== */
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,400;1,500;1,600&family=Crimson+Text:ital,wght@0,400;0,600;1,200;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Mr+Bedfort&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 
 /* ===== CSS RESET & BASE ===== */
 *, *::before, *::after {
@@ -58,6 +58,7 @@
   --font-cursive: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
   --font-handwriting: 'Roboto', Georgia, Palatino, 'Book Antiqua', serif;
   --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-script: 'Mr Bedfort', cursive;
   
   /* Spacing */
   --spacing-xs: 0.5rem;

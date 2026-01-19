@@ -258,48 +258,7 @@ export async function createSession(deviceInfo = {}) {
   }
 }
 
-/**
- * Upload a base64 image to Supabase Storage
- * @param {string} base64Data - Raw base64 string from OpenAI
- * @param {string} emotion - Emotion for filename
- * @returns {Promise<string|null>} - Permanent Public URL
- */
-export async function uploadIllustration(base64Data, emotion) {
-  const supabase = getSupabase();
-  if (!supabase) return null; 
 
-  try {
-    const timestamp = Date.now();
-    const safeName = (emotion || 'poem').trim().toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const filename = `${timestamp}-${safeName}.png`;
-
-    // 1. Convert Base64 to Blob
-    const res = await fetch(`data:image/png;base64,${base64Data}`);
-    const blob = await res.blob();
-
-    // 2. Upload to 'illustrations' bucket
-    const { error: uploadError } = await supabase.storage
-      .from('illustrations')
-      .upload(filename, blob, {
-        contentType: 'image/png',
-        upsert: false
-      });
-
-    if (uploadError) throw uploadError;
-
-    // 3. Get Public URL
-    const { data } = supabase.storage
-      .from('illustrations')
-      .getPublicUrl(filename);
-
-    console.log('✅ Image uploaded permanent URL:', data.publicUrl);
-    return data.publicUrl;
-
-  } catch (error) {
-    console.error('❌ Error uploading illustration:', error);
-    return null;
-  }
-}
 
 
 /**
