@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect, lazy, Suspense, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useCallback, useEffect, lazy, Suspense, useRef, forwardRef, useImperativeHandle } from 'react';
 import WritingCanvas from './components/WritingCanvas/WritingCanvas';
 import Loader from './components/Loader/Loader';
+import ProgressBar from './components/ProgressBar/ProgressBar';
 import { isOpenAIConfigured, generatePoemMultimodal } from './services/ai';
 
 // Lazy load heavy components
@@ -477,9 +478,9 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
 export default function App() {
   const [appState, setAppState] = useState(STATES.WRITING);
   // FEATURE FLAG: Show gallery button on intro screen
-  const SHOW_GALLERY = true; 
+  const SHOW_GALLERY = false; 
   // FEATURE FLAG: Show history carousel
-  const SHOW_CAROUSEL = true; 
+  const SHOW_CAROUSEL = false; 
 
   const [writingStage, setWritingStage] = useState(WRITING_STAGES.INTRO);
   const [poem, setPoem] = useState(null);
@@ -703,7 +704,7 @@ export default function App() {
 
       {/* Processing State */}
       {appState === STATES.PROCESSING && (
-        <Loader emotion={emotion} />
+        <ProgressBar />
       )}
 
       {/* Poem Display State */}

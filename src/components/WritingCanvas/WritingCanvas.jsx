@@ -67,7 +67,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         ctx.strokeStyle = '#1A1815';
         ctx.shadowBlur = 0;
       }
-      ctx.lineWidth = 5;
+      ctx.lineWidth = 12; // Aumentado el grosor para mejorar la visibilidad y detección AI
       
       contextRef.current = ctx;
     };
@@ -135,7 +135,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     ctx.beginPath();
     ctx.moveTo(x, y);
     // Trazo estándar
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 12;
     
     setIsDrawing(true);
     setHasContent(true);
@@ -206,7 +206,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 12;
     
     setIsDrawing(true);
     setHasContent(true);
@@ -291,18 +291,26 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     tempCanvas.height = canvas.height;
     const tCtx = tempCanvas.getContext('2d');
     
-    // Fill with black
-    tCtx.fillStyle = '#000000';
+    // 1. Fill with WHITE background
+    tCtx.fillStyle = '#FFFFFF';
     tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // 2. Draw the stroke
+    if (fullScreen) {
+        tCtx.globalCompositeOperation = 'difference';
+    }
     
     // Draw original drawing on top
     tCtx.drawImage(canvas, 0, 0);
+
+    // Reset composite operation
+    tCtx.globalCompositeOperation = 'source-over';
     
     // Export as JPEG (smaller, good for photos/vision)
     const imageData = tempCanvas.toDataURL('image/jpeg', 0.85); // High quality for text/lines
     
     onSubmit(imageData);
-  }, [hasContent, isProcessing, onSubmit]);
+  }, [hasContent, isProcessing, onSubmit, fullScreen]);
 
   return (
     <div className={`writing-canvas-container ${fullScreen ? 'fullscreen' : ''}`}>
