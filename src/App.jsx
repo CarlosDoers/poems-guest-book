@@ -214,11 +214,27 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
           videoUv.x = 1.0 - videoUv.x;
           
           videoUv = clamp(videoUv, 0.0, 1.0);
-          vec3 vidColor = texture2D(uChannel0, videoUv).rgb;
+          
+          // Radial Blur (Desenfoque en los bordes)
+          vec3 vidColor = vec3(0.0);
+          // La fuerza del desenfoque aumenta cuanto más lejos del centro estemos
+          float blurStrength = smoothstep(0.15, 0.85, length(uv - 0.5)) * 0.035; 
+          
+          // 8 muestras alrededor + centro con más peso
+          float totalIter = 0.0;
+          for (float i = 0.0; i < 6.28; i += 0.785) { 
+             vec2 blurOffset = vec2(cos(i), sin(i)) * blurStrength;
+             vidColor += texture2D(uChannel0, clamp(videoUv + blurOffset, 0.0, 1.0)).rgb;
+             totalIter += 1.0;
+          }
+          vidColor += texture2D(uChannel0, videoUv).rgb * 4.0; // Centro nítido (peso 4)
+          vidColor /= (totalIter + 4.0);
           
           // Blend Mode
-          finalColor = mix(vidColor, waterColour, 0.35); 
-          finalColor = finalColor * vec3(0.85, 0.95, 1.1) + vec3(0.0, 0.05, 0.1); 
+          // Más mezcla con el color del agua para un efecto más sumergido
+          finalColor = mix(vidColor, waterColour, 0.75); 
+          // Tinte azul más pronunciado (menos rojo/verde, mas azul)
+          finalColor = finalColor * vec3(0.8, 0.9, 1.1) + vec3(0.0, 0.08, 0.1); 
 
         } else {
           finalColor = waterColour;
