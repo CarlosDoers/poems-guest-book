@@ -5,13 +5,14 @@ const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
 // Spanish voices - Choose one that fits the emotional tone
 const VOICE_IDS = {
   // Pre-made voices (siempre disponibles)
-  angela: 'FUfBrNit0NNZAwb58KWH', // Angela - french female
-  bosco: '0vrPGvXHhDD3rbGURCk8', // Bosco - Spanish male
-  oscar: 'LdJsUJ9dnNgwNnALzX1G', // Óscar - Spanish male
+  molete: 'rBuvl8SyA9yzqJ8oZodv', // Molete - female
+  samantha: '145B0ewr1Bbkr5Q6lz0f', // Samantha - female
+  koraly: 'sH0WdfE5fsKuM2otdQZr', // Koraly - female
+  jeremy: 'jQdbxbLkTIH1gFKm1h2G', // Jeremy - male
   
   // Voces en español recomendadas (pueden variar según tu cuenta)
   // Reemplaza estos IDs con los que encuentres en tu cuenta
-  default: 'FUfBrNit0NNZAwb58KWH', // 👈 CAMBIA ESTE ID POR TU VOZ FAVORITA
+  default: 'sH0WdfE5fsKuM2otdQZr', // 👈 CAMBIA ESTE ID POR TU VOZ FAVORITA
   
   // Para agregar más voces:
   // 1. Ve a https://elevenlabs.io/app/voice-lab
@@ -54,8 +55,13 @@ export async function generateSpeech(text, voiceId = VOICE_IDS.default) {
         'xi-api-key': ELEVENLABS_API_KEY
       },
       body: JSON.stringify({
-        text: text,
-        model_id: 'eleven_multilingual_v2', // Best for Spanish
+        text: `[relata un poema] ${text}`,
+        // Modelos disponibles:
+        // 'eleven_multilingual_v2' - Calidad estándar, estable (anterior)
+        // 'eleven_flash_v2_5'     - Más rápido, baja latencia
+        // 'eleven_turbo_v2_5'     - Balance entre velocidad y calidad
+        // 'eleven_v3'             - (Alpha) Máxima expresividad y calidad
+        model_id: 'eleven_v3', 
         voice_settings: {
           stability: 0.5, // 0-1, higher = more consistent
           similarity_boost: 0.75, // 0-1, higher = more similar to original voice

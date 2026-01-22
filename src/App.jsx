@@ -494,9 +494,9 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
 export default function App() {
   const [appState, setAppState] = useState(STATES.WRITING);
   // FEATURE FLAG: Show gallery button on intro screen
-  const SHOW_GALLERY = false; 
+  const SHOW_GALLERY = true; 
   // FEATURE FLAG: Show history carousel
-  const SHOW_CAROUSEL = false; 
+  const SHOW_CAROUSEL = true; 
 
   const [writingStage, setWritingStage] = useState(WRITING_STAGES.INTRO);
   const [poem, setPoem] = useState(null);
