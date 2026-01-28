@@ -11,7 +11,7 @@ const APP_SLUG = 'guestbook';
 let supabaseInstance = null;
 let appId = null;
 
-function getSupabase() {
+export function getSupabase() {
   if (!supabaseInstance && isSupabaseConfigured()) {
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
   }

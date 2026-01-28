@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import './WritingCanvas.css';
+import { getSupabase, isSupabaseConfigured } from '../../services/supabase';
 
 // Utility: Debounce function
 const debounce = (func, wait) => {
@@ -22,21 +23,28 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
   const lastTouchRef = useRef(null); // Track if we're using touch to avoid pointer duplication
   const channelRef = useRef(null);
 
-  // Initialize BroadcastChannel
+  // Initialize Supabase Realtime Channel
   useEffect(() => {
-    channelRef.current = new BroadcastChannel('guestbook_sync');
+    if (!isSupabaseConfigured()) return;
+    
+    const supabase = getSupabase();
+    channelRef.current = supabase.channel('guestbook_sync');
     
     if (isProjection) {
-      channelRef.current.onmessage = (event) => {
-        const { type, data } = event.data;
-        const canvas = canvasRef.current;
-        const ctx = contextRef.current;
-        if (!canvas || !ctx) return;
-
-        // Obtener dimensiones actuales del receptor para mapear correctamente las coordenadas normalizadas
-        const rect = canvas.getBoundingClientRect();
-
-        if (type === 'STROKE_START') {
+      channelRef.current
+        .on('broadcast', { event: 'STROKE_START' }, (payload) => {
+          // Supabase envuelve el payload real en payload.payload
+          console.log('[PROJECTION] ✏️ STROKE_START recibido (raw):', payload);
+          if (!payload || !payload.payload) {
+            console.warn('[PROJECTION] ⚠️ Payload sin .payload:', payload);
+            return;
+          }
+          const { data } = payload.payload;
+          console.log('[PROJECTION] ✏️ STROKE_START (data):', data);
+          const canvas = canvasRef.current;
+          const ctx = contextRef.current;
+          if (!canvas || !ctx) return;
+          const rect = canvas.getBoundingClientRect();
           const x = data.x * rect.width;
           const y = data.y * rect.height;
           ctx.beginPath();
@@ -44,7 +52,19 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
           ctx.lineWidth = 12;
           if (onStrokeUpdate) onStrokeUpdate(x, y, true);
           setHasContent(true);
-        } else if (type === 'STROKE_MOVE') {
+        })
+        .on('broadcast', { event: 'STROKE_MOVE' }, (payload) => {
+          console.log('[PROJECTION] ✏️ STROKE_MOVE recibido (raw):', payload);
+          if (!payload || !payload.payload) {
+            console.warn('[PROJECTION] ⚠️ Payload sin .payload:', payload);
+            return;
+          }
+          const { data } = payload.payload;
+          console.log('[PROJECTION] ✏️ STROKE_MOVE (data):', data);
+          const canvas = canvasRef.current;
+          const ctx = contextRef.current;
+          if (!canvas || !ctx) return;
+          const rect = canvas.getBoundingClientRect();
           const x = data.x * rect.width;
           const y = data.y * rect.height;
           ctx.lineTo(x, y);
@@ -52,19 +72,30 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
           ctx.beginPath();
           ctx.moveTo(x, y);
           if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-        } else if (type === 'STROKE_END') {
+        })
+        .on('broadcast', { event: 'STROKE_END' }, (payload) => {
+          console.log('[PROJECTION] ✏️ STROKE_END recibido:', payload);
+          const ctx = contextRef.current;
+          if (!ctx) return;
           ctx.closePath();
           if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
-        } else if (type === 'CLEAR') {
+        })
+        .on('broadcast', { event: 'CLEAR' }, (payload) => {
+          console.log('[PROJECTION] 🧹 CLEAR recibido:', payload);
+          const canvas = canvasRef.current;
+          const ctx = contextRef.current;
+          if (!canvas || !ctx) return;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           setHasContent(false);
           if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
-        }
-      };
+        })
+        .subscribe();
+    } else {
+      channelRef.current.subscribe();
     }
 
     return () => {
-      if (channelRef.current) channelRef.current.close();
+      if (channelRef.current) channelRef.current.unsubscribe();
     };
   }, [isProjection, onStrokeUpdate]);
 
@@ -170,9 +201,13 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
     if (onInteractionStart) onInteractionStart();
     
-    // Broadcast
-    if (channelRef.current) {
-      channelRef.current.postMessage({ type: 'STROKE_START', data: { x: nx, y: ny } });
+    // Broadcast via Supabase Realtime
+    if (channelRef.current && isSupabaseConfigured()) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'STROKE_START',
+        payload: { data: { x: nx, y: ny } }
+      });
     }
     
     const ctx = contextRef.current;
@@ -203,15 +238,23 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
             ctx.beginPath();
             ctx.moveTo(x, y);
             if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-            if (channelRef.current) {
-              channelRef.current.postMessage({ type: 'STROKE_MOVE', data: { x: nx, y: ny } });
+            if (channelRef.current && isSupabaseConfigured()) {
+              channelRef.current.send({
+                type: 'broadcast',
+                event: 'STROKE_MOVE',
+                payload: { data: { x: nx, y: ny } }
+              });
             }
         }
     } else {
         const { x, y, nx, ny } = getPointerPosition(e);
         if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-        if (channelRef.current) {
-          channelRef.current.postMessage({ type: 'STROKE_MOVE', data: { x: nx, y: ny } });
+        if (channelRef.current && isSupabaseConfigured()) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'STROKE_MOVE',
+            payload: { data: { x: nx, y: ny } }
+          });
         }
         
         ctx.lineTo(x, y);
@@ -233,8 +276,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     if (ctx) ctx.closePath();
     
     if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
-    if (channelRef.current) {
-      channelRef.current.postMessage({ type: 'STROKE_END' });
+    if (channelRef.current && isSupabaseConfigured()) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'STROKE_END',
+        payload: {}
+      });
     }
     
     setIsDrawing(false);
@@ -250,8 +297,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const { x, y, nx, ny } = getTouchPosition(touch);
     
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-    if (channelRef.current) {
-      channelRef.current.postMessage({ type: 'STROKE_START', data: { x: nx, y: ny } });
+    if (channelRef.current && isSupabaseConfigured()) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'STROKE_START',
+        payload: { data: { x: nx, y: ny } }
+      });
     }
     
     const ctx = contextRef.current;
@@ -275,8 +326,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const { x, y, nx, ny } = getTouchPosition(touch);
     
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-    if (channelRef.current) {
-      channelRef.current.postMessage({ type: 'STROKE_MOVE', data: { x: nx, y: ny } });
+    if (channelRef.current && isSupabaseConfigured()) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'STROKE_MOVE',
+        payload: { data: { x: nx, y: ny } }
+      });
     }
     
     const ctx = contextRef.current;
@@ -297,8 +352,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const ctx = contextRef.current;
     if (ctx) ctx.closePath();
     if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
-    if (channelRef.current) {
-      channelRef.current.postMessage({ type: 'STROKE_END' });
+    if (channelRef.current && isSupabaseConfigured()) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'STROKE_END',
+        payload: {}
+      });
     }
     
     setIsDrawing(false);
@@ -325,8 +384,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasContent(false);
     
-    if (!isProjection && channelRef.current) {
-      channelRef.current.postMessage({ type: 'CLEAR' });
+    if (!isProjection && channelRef.current && isSupabaseConfigured()) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'CLEAR',
+        payload: {}
+      });
     }
   }, [isProjection]);
 
