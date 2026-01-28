@@ -1,43 +1,31 @@
-import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
 import { WaterSimulation } from './WaterSimulation';
 
-// --- CONFIGURACIÓN DE EFECTOS VISUALES (AGUA) ---
-// Ajusta estos valores para cambiar el aspecto del shader
-const WATER_FX = {
-  // Fuerza de las ondas automáticas (cuando el agua está en reposo)
-  autoWaveStrength: 0.24, // Mayor valor = ondas automáticas más fuertes
-  // Intensidad de la distorsión del agua (Refracción)
-  refraction: 0.035, // 0.0 = sin distorsión
-
-  // Intensidad y radio del desenfoque en los bordes
-  blurIntensity: 16.0, // Mayor valor = más borroso en las esquinas
-  blurStart: 0.15, // Radio desde el centro donde empieza el blur (0 = centro, 1 = borde)
-  blurEnd: 0.75,   // Radio donde el blur llega a su máximo
-
-  // Color del filtro azul (R, G, B) - Valores de 0.0 a 1.0
-  filterColor: [0.0, 0.25, 0.55], // Azul profundo
-  filterOpacity: 0.6, // 0.0 = transparente, 1.0 = color sólido
-
-  // Color del reflejo del cielo (R, G, B)
-  // Presets sugeridos:
-  // - [0.7, 0.85, 1.0] -> Celeste claro (original)
-  // - [0.4, 0.5, 0.7]  -> Azul suave / Atardecer gris
-  // - [0.2, 0.35, 0.5] -> Azul acero profundo (más oscuro)
-  // - [0.1, 0.2, 0.4]  -> Azul medianoche (muy oscuro)
+// --- CONFIGURACIÓN POR DEFECTO ---
+const DEFAULT_WATER_FX = {
+  autoWaveStrength: 0.24,
+  refraction: 0.05,
+  blurIntensity: 16.0,
+  blurStart: 0.15,
+  blurEnd: 0.75,
+  filterColor: [0.0, 0.25, 0.55],
+  filterOpacity: 0.6,
   skyColor: [0.2, 0.35, 0.5], 
-
-  // Brillos (Reflejos de luz)
-  shineIntensity: 1.9, // Brillo principal (destellos) - (Aumentado para más brillo)
-  shineSharpness: 100.0, // Que tan pequeño es el punto de luz (mayor = más nítido)
-  
-  wetnessIntensity: 1.5, // Brillo suave general (aspecto mojado)
-  wetnessSpread: 10.0,   // Dispersión del brillo suave
+  shineIntensity: 1.9,
+  shineSharpness: 100.0,
+  wetnessIntensity: 1.5,
+  wetnessSpread: 10.0,
+  vignetteStart: 0.25,
+  vignetteEnd: 0.85,
 };
 
-const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
+const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} }, ref) => {
   const canvasRef = useRef(null);
   const videoRef = useRef(null);
   const simulationRef = useRef(null);
+
+  // Mezclar configuración usando useMemo para evitar que el shader se reinicie en cada render
+  const fx = useMemo(() => ({ ...DEFAULT_WATER_FX, ...config }), [config]);
 
   // Snapshot functionality for AI (Face analysis)
   useImperativeHandle(ref, () => ({
@@ -140,18 +128,20 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
       uniform vec2 uVideoRes;
       uniform float uVideoReady;
       
-      // Inyectamos valores de configuración desde JS
-      const float REFRACTION = ${WATER_FX.refraction.toFixed(4)};
-      const float BLUR_MAX = ${WATER_FX.blurIntensity.toFixed(1)};
-      const float BLUR_START = ${WATER_FX.blurStart.toFixed(2)};
-      const float BLUR_END = ${WATER_FX.blurEnd.toFixed(2)};
-      const vec3 FILTER_COLOR = vec3(${WATER_FX.filterColor[0]}, ${WATER_FX.filterColor[1]}, ${WATER_FX.filterColor[2]});
-      const float FILTER_OPACITY = ${WATER_FX.filterOpacity.toFixed(2)};
-      const float SHINE_INT = ${WATER_FX.shineIntensity.toFixed(2)};
-      const float SHINE_SHARP = ${WATER_FX.shineSharpness.toFixed(1)};
-      const float WET_INT = ${WATER_FX.wetnessIntensity.toFixed(2)};
-      const float WET_SPREAD = ${WATER_FX.wetnessSpread.toFixed(1)};
-      const vec3 SKY_COLOR = vec3(${WATER_FX.skyColor[0]}, ${WATER_FX.skyColor[1]}, ${WATER_FX.skyColor[2]});
+      // Inyectamos valores de configuración dinámicos
+      const float REFRACTION = ${fx.refraction.toFixed(4)};
+      const float BLUR_MAX = ${fx.blurIntensity.toFixed(1)};
+      const float BLUR_START = ${fx.blurStart.toFixed(2)};
+      const float BLUR_END = ${fx.blurEnd.toFixed(2)};
+      const vec3 FILTER_COLOR = vec3(${fx.filterColor[0]}, ${fx.filterColor[1]}, ${fx.filterColor[2]});
+      const float FILTER_OPACITY = ${fx.filterOpacity.toFixed(2)};
+      const float SHINE_INT = ${fx.shineIntensity.toFixed(2)};
+      const float SHINE_SHARP = ${fx.shineSharpness.toFixed(1)};
+      const float WET_INT = ${fx.wetnessIntensity.toFixed(2)};
+      const float WET_SPREAD = ${fx.wetnessSpread.toFixed(1)};
+      const vec3 SKY_COLOR = vec3(${fx.skyColor[0]}, ${fx.skyColor[1]}, ${fx.skyColor[2]});
+      const float VIGNETTE_START = ${fx.vignetteStart.toFixed(2)};
+      const float VIGNETTE_END = ${fx.vignetteEnd.toFixed(2)};
       
       const vec3 underwaterColor = vec3(0.0, 0.5, 0.8); // Adjusted for more depth
       const vec3 lightDir = normalize(vec3(0.5, 0.7, 0.5));
@@ -265,7 +255,7 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
 
          // 5. Vignette (Dark corners)
          float distV = distance(vUv, vec2(0.5));
-         float vignette = smoothstep(0.85, 0.25, distV); 
+         float vignette = smoothstep(VIGNETTE_END, VIGNETTE_START, distV); 
          color *= vignette;
 
          gl_FragColor = vec4(color, 1.0);
@@ -395,7 +385,7 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
                  Math.random() * 2 - 1, 
                  Math.random() * 2 - 1, 
                  0.03, 
-                 (Math.random() - 0.5) * WATER_FX.autoWaveStrength
+                 (Math.random() - 0.5) * fx.autoWaveStrength
              );
         }
     };
@@ -469,7 +459,7 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef }, ref) => {
         if (stream) stream.getTracks().forEach(t => t.stop());
     };
 
-  }, [enabled, sharedPointerRef]);
+  }, [enabled, sharedPointerRef, fx]);
 
   if (!enabled) return null;
   return <canvas ref={canvasRef} className="ripple-bg" style={{width:'100%', height:'100%', display:'block'}} aria-hidden="true" />;

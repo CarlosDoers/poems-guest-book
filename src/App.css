@@ -218,3 +218,24 @@
   }
 }
 
+/* Projection Mode Specific Styles */
+.projection-view {
+  overflow: hidden;
+  background: black;
+}
+
+.projection-view canvas {
+  cursor: none !important;
+}
+
+/* Global class to hide standard UI if present */
+.projection-mode .writing-hint,
+.projection-mode .intro-screen,
+.projection-mode .canvas-footer,
+.projection-mode .config-warnings,
+.projection-mode .history-carousel {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+

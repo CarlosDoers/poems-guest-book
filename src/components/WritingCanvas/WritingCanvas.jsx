@@ -14,12 +14,59 @@ const debounce = (func, wait) => {
   };
 };
 
-export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onInteractionStart }) {
+export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onInteractionStart, isProjection = false }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasContent, setHasContent] = useState(false);
   const lastTouchRef = useRef(null); // Track if we're using touch to avoid pointer duplication
+  const channelRef = useRef(null);
+
+  // Initialize BroadcastChannel
+  useEffect(() => {
+    channelRef.current = new BroadcastChannel('guestbook_sync');
+    
+    if (isProjection) {
+      channelRef.current.onmessage = (event) => {
+        const { type, data } = event.data;
+        const canvas = canvasRef.current;
+        const ctx = contextRef.current;
+        if (!canvas || !ctx) return;
+
+        // Obtener dimensiones actuales del receptor para mapear correctamente las coordenadas normalizadas
+        const rect = canvas.getBoundingClientRect();
+
+        if (type === 'STROKE_START') {
+          const x = data.x * rect.width;
+          const y = data.y * rect.height;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineWidth = 12;
+          if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+          setHasContent(true);
+        } else if (type === 'STROKE_MOVE') {
+          const x = data.x * rect.width;
+          const y = data.y * rect.height;
+          ctx.lineTo(x, y);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+        } else if (type === 'STROKE_END') {
+          ctx.closePath();
+          if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
+        } else if (type === 'CLEAR') {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          setHasContent(false);
+          if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
+        }
+      };
+    }
+
+    return () => {
+      if (channelRef.current) channelRef.current.close();
+    };
+  }, [isProjection, onStrokeUpdate]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -29,9 +76,6 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       const container = canvas.parentElement;
       const rect = container.getBoundingClientRect();
       
-      // High DPI support - Optimized
-      // Cap DPR to 1.5 on desktops, and 1.5 on mobile/tablet to balance quality/performance
-      // Native scale (2x/3x) on iPad causes significant input lag and heat with canvas
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       
       canvas.width = rect.width * dpr;
@@ -50,10 +94,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       ctx.lineJoin = 'round';
       
       if (fullScreen) {
-        // Trazo sólido blanco estandar
         ctx.strokeStyle = '#FFFFFF';
-        
-        // Optimización: Desactivar shadowBlur en móviles/tablets para evitar lag
         const isMobile = window.innerWidth <= 1024;
         if (!isMobile) {
             ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
@@ -67,17 +108,15 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         ctx.strokeStyle = '#1A1815';
         ctx.shadowBlur = 0;
       }
-      ctx.lineWidth = 12; // Aumentado el grosor para mejorar la visibilidad y detección AI
+      ctx.lineWidth = 12;
       
       contextRef.current = ctx;
     };
 
     resizeCanvas();
-    // Debounce resize to avoid excessive recalculations (250ms)
     const debouncedResize = debounce(resizeCanvas, 250);
     window.addEventListener('resize', debouncedResize);
     
-    // Prevent double-tap gesture on iOS/Safari (interferes with rapid strokes)
     const preventDoubleTap = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -97,7 +136,10 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     return {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
-      pressure: e.pressure || 0.5
+      pressure: e.pressure || 0.5,
+      // Normalized coordinates (0-1) for sync
+      nx: (e.clientX - rect.left) / rect.width,
+      ny: (e.clientY - rect.top) / rect.height
     };
   }, []);
 
@@ -108,71 +150,79 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     return {
       x: touch.clientX - rect.left,
       y: touch.clientY - rect.top,
-      pressure: touch.force || 0.5 // Apple Pencil supports force
+      pressure: touch.force || 0.5,
+      nx: (touch.clientX - rect.left) / rect.width,
+      ny: (touch.clientY - rect.top) / rect.height
     };
   }, []);
 
   const startDrawing = useCallback((e) => {
+    if (isProjection) return;
     e.preventDefault();
     e.stopPropagation();
     
-    // Capture pointer for desktop/stylus
     if (e.pointerId !== undefined) {
       e.target.setPointerCapture(e.pointerId);
     }
     
-    const { x, y } = getPointerPosition(e);
+    const { x, y, nx, ny } = getPointerPosition(e);
     
-    // Update shader
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-    
-    // Notify parent interaction started (to hide intro overlays)
     if (onInteractionStart) onInteractionStart();
     
+    // Broadcast
+    if (channelRef.current) {
+      channelRef.current.postMessage({ type: 'STROKE_START', data: { x: nx, y: ny } });
+    }
+    
     const ctx = contextRef.current;
-    if (!ctx) return; // Safety check: context might not be initialized
+    if (!ctx) return;
     
     ctx.beginPath();
     ctx.moveTo(x, y);
-    // Trazo estándar
     ctx.lineWidth = 12;
     
     setIsDrawing(true);
     setHasContent(true);
-  }, [getPointerPosition, onStrokeUpdate, onInteractionStart]);
+  }, [getPointerPosition, onStrokeUpdate, onInteractionStart, isProjection]);
 
   const draw = useCallback((e) => {
-    if (!isDrawing) return;
+    if (!isDrawing || isProjection) return;
     e.preventDefault();
     e.stopPropagation();
     
     const ctx = contextRef.current;
-    if (!ctx) return; // Safety check: context might not be initialized
+    if (!ctx) return;
     
-    // Use coalesced events for higher precision if available
     if (e.getCoalescedEvents) {
         const events = e.getCoalescedEvents();
         for (const event of events) {
-            const { x, y } = getPointerPosition(event);
+            const { x, y, nx, ny } = getPointerPosition(event);
             ctx.lineTo(x, y);
             ctx.stroke();
             ctx.beginPath();
             ctx.moveTo(x, y);
+            if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+            if (channelRef.current) {
+              channelRef.current.postMessage({ type: 'STROKE_MOVE', data: { x: nx, y: ny } });
+            }
         }
     } else {
-        const { x, y } = getPointerPosition(e);
-        
-        // Update shader
+        const { x, y, nx, ny } = getPointerPosition(e);
         if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+        if (channelRef.current) {
+          channelRef.current.postMessage({ type: 'STROKE_MOVE', data: { x: nx, y: ny } });
+        }
         
         ctx.lineTo(x, y);
         ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(x, y);
     }
-  }, [isDrawing, getPointerPosition, onStrokeUpdate]);
+  }, [isDrawing, getPointerPosition, onStrokeUpdate, isProjection]);
 
   const stopDrawing = useCallback((e) => {
+    if (isProjection) return;
     if (e) {
         e.preventDefault();
         if (e.pointerId !== undefined) {
@@ -180,29 +230,32 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         }
     }
     const ctx = contextRef.current;
-    if (ctx) ctx.closePath(); // Safety check
+    if (ctx) ctx.closePath();
     
-    // Update shader (mouse up)
     if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
+    if (channelRef.current) {
+      channelRef.current.postMessage({ type: 'STROKE_END' });
+    }
     
     setIsDrawing(false);
-  }, [onStrokeUpdate]);
+  }, [onStrokeUpdate, isProjection]);
 
-  // TOUCH EVENTS - Override pointer events on touch devices for better iOS support
   const handleTouchStart = useCallback((e) => {
+    if (isProjection) return;
     e.preventDefault();
     e.stopPropagation();
     
     lastTouchRef.current = Date.now();
-    
     const touch = e.touches[0];
-    const { x, y } = getTouchPosition(touch);
+    const { x, y, nx, ny } = getTouchPosition(touch);
     
-    // Update shader
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    if (channelRef.current) {
+      channelRef.current.postMessage({ type: 'STROKE_START', data: { x: nx, y: ny } });
+    }
     
     const ctx = contextRef.current;
-    if (!ctx) return; // Safety check
+    if (!ctx) return;
     
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -210,65 +263,59 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     setIsDrawing(true);
     setHasContent(true);
-  }, [getTouchPosition, onStrokeUpdate]);
+  }, [getTouchPosition, onStrokeUpdate, isProjection]);
 
   const handleTouchMove = useCallback((e) => {
-    if (!isDrawing) return;
+    if (!isDrawing || isProjection) return;
     e.preventDefault();
     e.stopPropagation();
     
     lastTouchRef.current = Date.now();
-    
     const touch = e.touches[0];
-    const { x, y } = getTouchPosition(touch);
+    const { x, y, nx, ny } = getTouchPosition(touch);
     
-    // Update shader
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    if (channelRef.current) {
+      channelRef.current.postMessage({ type: 'STROKE_MOVE', data: { x: nx, y: ny } });
+    }
     
     const ctx = contextRef.current;
-    if (!ctx) return; // Safety check
+    if (!ctx) return;
     
     ctx.lineTo(x, y);
     ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(x, y);
-  }, [isDrawing, getTouchPosition, onStrokeUpdate]);
+  }, [isDrawing, getTouchPosition, onStrokeUpdate, isProjection]);
 
   const handleTouchEnd = useCallback((e) => {
+    if (isProjection) return;
     e.preventDefault();
     e.stopPropagation();
     
     lastTouchRef.current = Date.now();
-    
     const ctx = contextRef.current;
-    if (ctx) ctx.closePath(); // Safety check
-    
-    // Update shader
+    if (ctx) ctx.closePath();
     if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
+    if (channelRef.current) {
+      channelRef.current.postMessage({ type: 'STROKE_END' });
+    }
     
     setIsDrawing(false);
-  }, [onStrokeUpdate]);
+  }, [onStrokeUpdate, isProjection]);
 
-  // Pointer event wrappers that check if touch was recently used
   const handlePointerDown = useCallback((e) => {
-    // If touch was used recently (within 100ms), ignore pointer event (avoid duplication)
-    if (lastTouchRef.current && Date.now() - lastTouchRef.current < 100) {
-      return;
-    }
+    if (lastTouchRef.current && Date.now() - lastTouchRef.current < 100) return;
     startDrawing(e);
   }, [startDrawing]);
 
   const handlePointerMove = useCallback((e) => {
-    if (lastTouchRef.current && Date.now() - lastTouchRef.current < 100) {
-      return;
-    }
+    if (lastTouchRef.current && Date.now() - lastTouchRef.current < 100) return;
     draw(e);
   }, [draw]);
 
   const handlePointerUp = useCallback((e) => {
-    if (lastTouchRef.current && Date.now() - lastTouchRef.current < 100) {
-      return;
-    }
+    if (lastTouchRef.current && Date.now() - lastTouchRef.current < 100) return;
     stopDrawing(e);
   }, [stopDrawing]);
 
@@ -277,43 +324,36 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const ctx = contextRef.current;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasContent(false);
-  }, []);
+    
+    if (!isProjection && channelRef.current) {
+      channelRef.current.postMessage({ type: 'CLEAR' });
+    }
+  }, [isProjection]);
 
   const handleSubmit = useCallback(() => {
     if (!hasContent || isProcessing) return;
     
     const canvas = canvasRef.current;
-    
-    // Create a temporary canvas to composite against a black background
-    // (Since our strokes are white/light on transparent, OpenAI might see white-on-white)
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
     const tCtx = tempCanvas.getContext('2d');
     
-    // 1. Fill with WHITE background
     tCtx.fillStyle = '#FFFFFF';
     tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
     
-    // 2. Draw the stroke
     if (fullScreen) {
         tCtx.globalCompositeOperation = 'difference';
     }
-    
-    // Draw original drawing on top
     tCtx.drawImage(canvas, 0, 0);
-
-    // Reset composite operation
     tCtx.globalCompositeOperation = 'source-over';
     
-    // Export as JPEG (smaller, good for photos/vision)
-    const imageData = tempCanvas.toDataURL('image/jpeg', 0.85); // High quality for text/lines
-    
+    const imageData = tempCanvas.toDataURL('image/jpeg', 0.85);
     onSubmit(imageData);
   }, [hasContent, isProcessing, onSubmit, fullScreen]);
 
   return (
-    <div className={`writing-canvas-container ${fullScreen ? 'fullscreen' : ''}`}>
+    <div className={`writing-canvas-container ${fullScreen ? 'fullscreen' : ''} ${isProjection ? 'projection-canvas' : ''}`}>
       <div className="canvas-paper">
         <div className="paper-texture" />
         <canvas
@@ -329,48 +369,50 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchEnd}
         />
-        {!fullScreen && (
+        {!fullScreen && !isProjection && (
           <div className="canvas-placeholder" style={{ opacity: hasContent ? 0 : 1 }}>
             <span>Escribe aquí tu emoción...</span>
           </div>
         )}
       </div>
       
-      <div className="canvas-footer">
-        {(!fullScreen || hasContent) && (
-          <div className="button-group">
-            <button 
-              className="btn btn-secondary" 
-              onClick={clearCanvas}
-              disabled={!hasContent || isProcessing}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-              </svg>
-              Borrar
-            </button>
-            <button 
-              className="btn btn-primary" 
-              onClick={handleSubmit}
-              disabled={!hasContent || isProcessing}
-            >
-              {isProcessing ? (
-                <>
-                  <span className="loading-spinner" />
-                  Creando poema...
-                </>
-              ) : (
-                <>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                  Generar poema
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
+      {!isProjection && (
+        <div className="canvas-footer">
+          {(!fullScreen || hasContent) && (
+            <div className="button-group">
+              <button 
+                className="btn btn-secondary" 
+                onClick={clearCanvas}
+                disabled={!hasContent || isProcessing}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                </svg>
+                Borrar
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleSubmit}
+                disabled={!hasContent || isProcessing}
+              >
+                {isProcessing ? (
+                  <>
+                    <span className="loading-spinner" />
+                    Creando poema...
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                    Generar poema
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

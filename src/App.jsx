@@ -25,6 +25,17 @@ const WRITING_STAGES = {
 
 import RippleBackground from './components/RippleBackground/RippleBackground';
 
+const PROJECTION_WATER_FX = {
+  filterColor: [0.0, 0.25, 0.55],
+  filterOpacity: 0.5,
+  shineIntensity: 3.0,
+  refraction: 0.05,
+  autoWaveStrength: 0.5,
+  skyColor: [0.7, 0.85, 1.0], // Celeste claro para los reflejos en el suelo
+  vignetteStart: 0.2, // El círculo empieza a oscurecerse un poco después del centro
+  vignetteEnd: 0.5,   // Oscuridad total antes de llegar a los bordes rectangulares
+};
+
 export default function App() {
   const [appState, setAppState] = useState(STATES.WRITING);
   // FEATURE FLAG: Show gallery button on intro screen
@@ -168,6 +179,11 @@ export default function App() {
     setPoemId(null);
     setExistingAudioUrl(null);
     setError(null);
+
+    // Mandar señal de limpieza a la proyección
+    const channel = new BroadcastChannel('guestbook_sync');
+    channel.postMessage({ type: 'CLEAR' });
+    channel.close();
   }, []);
 
   const handleStartWriting = useCallback(() => {
@@ -191,11 +207,82 @@ export default function App() {
     }
   }, [recentPoems, handleSelectHistoryPoem]);
 
+  const isProjectionMode = new URLSearchParams(window.location.search).get('view') === 'projection';
+
+  useEffect(() => {
+    if (isProjectionMode) {
+      document.body.classList.add('projection-mode');
+    }
+    
+    const channel = new BroadcastChannel('guestbook_sync');
+    channel.onmessage = (event) => {
+      const { type, data } = event.data;
+      if (type === 'STATE_CHANGE') {
+        setAppState(data.appState);
+        setWritingStage(data.writingStage);
+        if (data.poem) setPoem(data.poem);
+        if (data.emotion) setEmotion(data.emotion);
+      } else if (type === 'CLEAR') {
+        // Al recibir CLEAR, reiniciamos el estado en la proyección también
+        setAppState(STATES.WRITING);
+        setWritingStage(WRITING_STAGES.INTRO);
+        setPoem(null);
+      }
+    };
+
+    return () => {
+      channel.close();
+      document.body.classList.remove('projection-mode');
+    };
+  }, [isProjectionMode]);
+
+  // Sync state changes to projection view
+  useEffect(() => {
+    if (!isProjectionMode) {
+      const channel = new BroadcastChannel('guestbook_sync');
+      channel.postMessage({
+        type: 'STATE_CHANGE',
+        data: { appState, writingStage, poem, emotion }
+      });
+      channel.close();
+    }
+  }, [appState, writingStage, poem, emotion, isProjectionMode]);
+
   const isWritingIntro = appState === STATES.WRITING && writingStage === WRITING_STAGES.INTRO;
   const isWritingCanvas = appState === STATES.WRITING && writingStage === WRITING_STAGES.CANVAS;
   
   // Enable Ripple/Water effect for all states
   const isRippleEnabled = true;
+
+  if (isProjectionMode) {
+    return (
+      <div className="app app-fullscreen app-fixed projection-view">
+        <RippleBackground 
+          ref={backgroundRef} 
+          enabled={isRippleEnabled} 
+          sharedPointerRef={sharedPointerRef} 
+          config={PROJECTION_WATER_FX}
+        />
+        {appState === STATES.POEM ? (
+           <Suspense fallback={null}>
+              <PoemDisplay 
+                poem={poem} 
+                emotion={emotion} 
+                isProjection={true} 
+              />
+           </Suspense>
+        ) : (
+          <WritingCanvas 
+            onSubmit={() => {}} 
+            isProcessing={false} 
+            fullScreen 
+            onStrokeUpdate={handleStrokeUpdate}
+            isProjection={true}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`app ${appState === STATES.POEM ? 'app-scrollable' : 'app-fixed'} ${isRippleEnabled ? 'app-fullscreen' : ''}`}>

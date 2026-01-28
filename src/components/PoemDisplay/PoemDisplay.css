@@ -1,4 +1,12 @@
 /* CSS for smooth line reveal */
+.projection-mode .btn,
+.projection-mode .button-group,
+.projection-mode .poem-actions-external,
+.projection-mode .canvas-footer {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 
 .poem-display {
   position: relative;
@@ -246,4 +254,28 @@
 .illustration-bg.loaded {
   opacity: 0.30; /* Target low opacity */
   transform: scale(1);
+}
+
+/* Projection-specific styles */
+.projection-poem {
+  max-width: 90vw;
+  height: 100vh;
+  justify-content: center;
+  padding: 5vh 5vw;
+}
+
+.projection-poem .poem-container {
+  min-height: auto;
+  margin-bottom: 0;
+}
+
+.projection-poem .poem-text-line {
+  font-size: clamp(2rem, 4vw, 3.2rem); /* Un poco más pequeño que antes */
+  line-height: 1.6;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8); /* Stronger shadow for floor */
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.projection-poem .poem-word {
+  transition-duration: 2s; /* Slower, more ethereal reveal on floor */
 }
