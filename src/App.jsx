@@ -7,8 +7,9 @@ import { isOpenAIConfigured, generatePoemMultimodal } from './services/ai';
 // Lazy load heavy components
 const PoemDisplay = lazy(() => import('./components/PoemDisplay/PoemDisplay'));
 const PoemCarousel = lazy(() => import('./components/PoemCarousel/PoemCarousel'));
-import { savePoem, getRecentPoems, isSupabaseConfigured, uploadPoemInputImage, getSupabase } from './services/supabase';
+import { savePoem, getRecentPoems, isSupabaseConfigured, uploadPoemInputImage } from './services/supabase';
 import { isElevenLabsConfigured } from './services/elevenlabs';
+import { getSyncChannel } from './services/sync';
 
 // App states
 const STATES = {
@@ -34,6 +35,8 @@ const PROJECTION_WATER_FX = {
   skyColor: [0.7, 0.85, 1.0], // Celeste claro para los reflejos en el suelo
   vignetteStart: 0.2, // El círculo empieza a oscurecerse un poco después del centro
   vignetteEnd: 0.5,   // Oscuridad total antes de llegar a los bordes rectangulares
+  useCamera: false,   // No usar la cámara en la proyección
+  underwaterColor: [0.03, 0.15, 0.4], // Azul profundo para el fondo
 };
 
 export default function App() {
@@ -171,6 +174,18 @@ export default function App() {
   }, []);
 
   const handleNewPoem = useCallback(() => {
+    // Mandar señal de limpieza a la proyección vía Supabase Realtime
+    const channel = getSyncChannel();
+    if (channel && isSupabaseConfigured()) {
+      console.log('📡 Enviando señal de CLEAR a través de Supabase...');
+      
+      channel.send({
+        type: 'broadcast',
+        event: 'CLEAR',
+        payload: {}
+      });
+    }
+
     setAppState(STATES.WRITING);
     setWritingStage(WRITING_STAGES.INTRO);
     setPoem(null);
@@ -179,16 +194,6 @@ export default function App() {
     setPoemId(null);
     setExistingAudioUrl(null);
     setError(null);
-
-    // Mandar señal de limpieza a la proyección vía Supabase Realtime
-    if (channelRef.current && isSupabaseConfigured()) {
-      console.log('📡 Enviando señal de CLEAR a través de Supabase...');
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'CLEAR',
-        payload: {}
-      });
-    }
   }, []);
 
   const handleStartWriting = useCallback(() => {
@@ -214,68 +219,77 @@ export default function App() {
 
   const isProjectionMode = new URLSearchParams(window.location.search).get('view') === 'projection';
 
-  // Supabase Realtime Channel
-  const channelRef = useRef(null);
+  useEffect(() => {
+    if (!isProjectionMode) {
+      const handleBeforeUnload = () => {
+        const channel = getSyncChannel();
+        if (channel) {
+          channel.send({
+            type: 'broadcast',
+            event: 'RELOAD_PROJECTION',
+            payload: {}
+          });
+        }
+      };
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+  }, [isProjectionMode]);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
     
-    const supabase = getSupabase();
-    console.log('🔌 Inicializando canal Supabase Realtime...');
-    channelRef.current = supabase.channel('guestbook_sync');
+    const channel = getSyncChannel();
+    if (!channel) return;
 
     if (isProjectionMode) {
       console.log('📽️ Modo Proyección: Escuchando cambios de estado...');
       document.body.classList.add('projection-mode');
       
-      channelRef.current
+      channel
         .on('broadcast', { event: 'STATE_CHANGE' }, (payload) => {
-          // Supabase envuelve el payload real en payload.payload
-          console.log('[PROJECTION] 📥 Estado recibido (raw):', payload);
-          if (!payload || !payload.payload) {
-            console.warn('[PROJECTION] ⚠️ Payload sin .payload:', payload);
-            return;
+          console.log('[PROJECTION] 📥 Estado recibido:', payload);
+          if (payload?.payload?.data) {
+            const { data } = payload.payload;
+            setAppState(data.appState);
+            setWritingStage(data.writingStage);
+            setPoem(data.poem);
+            setEmotion(data.emotion);
           }
-          const { data } = payload.payload;
-          console.log('[PROJECTION] 📥 Estado recibido (data):', data);
-          setAppState(data.appState);
-          setWritingStage(data.writingStage);
-          if (data.poem) setPoem(data.poem);
-          if (data.emotion) setEmotion(data.emotion);
         })
         .on('broadcast', { event: 'CLEAR' }, (payload) => {
-          console.log('[PROJECTION] 📥 Señal de CLEAR recibida:', payload);
+          console.log('[PROJECTION] 📥 Señal de CLEAR recibida, reiniciando...', payload);
           setAppState(STATES.WRITING);
           setWritingStage(WRITING_STAGES.INTRO);
           setPoem(null);
+          setEmotion('');
+          setPoemId(null);
+          setExistingAudioUrl(null);
         })
-        .subscribe((status) => {
-          console.log(`[PROJECTION] 📡 Suscripción Proyección: ${status}`);
+        .on('broadcast', { event: 'RELOAD_PROJECTION' }, () => {
+          console.log('[PROJECTION] 📥 Señal de RELOAD recibida, recargando página...');
+          window.location.reload();
         });
-    } else {
-      console.log('📱 Modo Controlador: Preparando envío de estado...');
-      channelRef.current.subscribe((status) => {
-        console.log(`[CONTROLADOR] 📡 Suscripción Controlador: ${status}`);
-      });
     }
 
     return () => {
-      if (channelRef.current) {
-        channelRef.current.unsubscribe();
-      }
       document.body.classList.remove('projection-mode');
     };
   }, [isProjectionMode]);
 
   // Sync state changes to projection view vía Supabase Realtime
   useEffect(() => {
-    if (!isProjectionMode && channelRef.current && isSupabaseConfigured()) {
-      console.log('📤 Enviando actualización de estado:', { appState, writingStage });
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'STATE_CHANGE',
-        payload: { data: { appState, writingStage, poem, emotion } }
-      });
+    if (!isProjectionMode && isSupabaseConfigured()) {
+      const channel = getSyncChannel();
+      if (channel) {
+        console.log('📤 Enviando actualización de estado:', { appState, writingStage });
+        channel.send({
+          type: 'broadcast',
+          event: 'STATE_CHANGE',
+          payload: { data: { appState, writingStage, poem, emotion } }
+        });
+      }
     }
   }, [appState, writingStage, poem, emotion, isProjectionMode]);
 

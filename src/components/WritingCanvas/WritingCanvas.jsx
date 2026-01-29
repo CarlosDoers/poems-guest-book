@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import './WritingCanvas.css';
-import { getSupabase, isSupabaseConfigured } from '../../services/supabase';
+import { getSyncChannel } from '../../services/sync';
 
 // Utility: Debounce function
 const debounce = (func, wait) => {
@@ -21,26 +21,17 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasContent, setHasContent] = useState(false);
   const lastTouchRef = useRef(null); // Track if we're using touch to avoid pointer duplication
-  const channelRef = useRef(null);
 
   // Initialize Supabase Realtime Channel
   useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    
-    const supabase = getSupabase();
-    channelRef.current = supabase.channel('guestbook_sync');
+    const channel = getSyncChannel();
+    if (!channel) return;
     
     if (isProjection) {
-      channelRef.current
+      channel
         .on('broadcast', { event: 'STROKE_START' }, (payload) => {
-          // Supabase envuelve el payload real en payload.payload
-          console.log('[PROJECTION] ✏️ STROKE_START recibido (raw):', payload);
-          if (!payload || !payload.payload) {
-            console.warn('[PROJECTION] ⚠️ Payload sin .payload:', payload);
-            return;
-          }
+          if (!payload?.payload?.data) return;
           const { data } = payload.payload;
-          console.log('[PROJECTION] ✏️ STROKE_START (data):', data);
           const canvas = canvasRef.current;
           const ctx = contextRef.current;
           if (!canvas || !ctx) return;
@@ -54,13 +45,8 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
           setHasContent(true);
         })
         .on('broadcast', { event: 'STROKE_MOVE' }, (payload) => {
-          console.log('[PROJECTION] ✏️ STROKE_MOVE recibido (raw):', payload);
-          if (!payload || !payload.payload) {
-            console.warn('[PROJECTION] ⚠️ Payload sin .payload:', payload);
-            return;
-          }
+          if (!payload?.payload?.data) return;
           const { data } = payload.payload;
-          console.log('[PROJECTION] ✏️ STROKE_MOVE (data):', data);
           const canvas = canvasRef.current;
           const ctx = contextRef.current;
           if (!canvas || !ctx) return;
@@ -73,29 +59,25 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
           ctx.moveTo(x, y);
           if (onStrokeUpdate) onStrokeUpdate(x, y, true);
         })
-        .on('broadcast', { event: 'STROKE_END' }, (payload) => {
-          console.log('[PROJECTION] ✏️ STROKE_END recibido:', payload);
+        .on('broadcast', { event: 'STROKE_END' }, () => {
           const ctx = contextRef.current;
           if (!ctx) return;
           ctx.closePath();
           if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
         })
-        .on('broadcast', { event: 'CLEAR' }, (payload) => {
-          console.log('[PROJECTION] 🧹 CLEAR recibido:', payload);
+        .on('broadcast', { event: 'CLEAR' }, () => {
+          console.log('[PROJECTION] 🧹 CLEAR recibido en canvas');
           const canvas = canvasRef.current;
           const ctx = contextRef.current;
           if (!canvas || !ctx) return;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           setHasContent(false);
           if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
-        })
-        .subscribe();
-    } else {
-      channelRef.current.subscribe();
+        });
     }
 
     return () => {
-      if (channelRef.current) channelRef.current.unsubscribe();
+      // No desuscribimos el canal compartido aquí para no romper App.jsx
     };
   }, [isProjection, onStrokeUpdate]);
 
@@ -202,8 +184,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     if (onInteractionStart) onInteractionStart();
     
     // Broadcast via Supabase Realtime
-    if (channelRef.current && isSupabaseConfigured()) {
-      channelRef.current.send({
+    const channel = getSyncChannel();
+    if (channel) {
+      channel.send({
         type: 'broadcast',
         event: 'STROKE_START',
         payload: { data: { x: nx, y: ny } }
@@ -238,8 +221,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
             ctx.beginPath();
             ctx.moveTo(x, y);
             if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-            if (channelRef.current && isSupabaseConfigured()) {
-              channelRef.current.send({
+            const channel = getSyncChannel();
+            if (channel) {
+              channel.send({
                 type: 'broadcast',
                 event: 'STROKE_MOVE',
                 payload: { data: { x: nx, y: ny } }
@@ -249,8 +233,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     } else {
         const { x, y, nx, ny } = getPointerPosition(e);
         if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-        if (channelRef.current && isSupabaseConfigured()) {
-          channelRef.current.send({
+        const channel = getSyncChannel();
+        if (channel) {
+          channel.send({
             type: 'broadcast',
             event: 'STROKE_MOVE',
             payload: { data: { x: nx, y: ny } }
@@ -276,8 +261,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     if (ctx) ctx.closePath();
     
     if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
-    if (channelRef.current && isSupabaseConfigured()) {
-      channelRef.current.send({
+    const channel = getSyncChannel();
+    if (channel) {
+      channel.send({
         type: 'broadcast',
         event: 'STROKE_END',
         payload: {}
@@ -297,8 +283,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const { x, y, nx, ny } = getTouchPosition(touch);
     
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-    if (channelRef.current && isSupabaseConfigured()) {
-      channelRef.current.send({
+    const channel = getSyncChannel();
+    if (channel) {
+      channel.send({
         type: 'broadcast',
         event: 'STROKE_START',
         payload: { data: { x: nx, y: ny } }
@@ -326,8 +313,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const { x, y, nx, ny } = getTouchPosition(touch);
     
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
-    if (channelRef.current && isSupabaseConfigured()) {
-      channelRef.current.send({
+    const channel = getSyncChannel();
+    if (channel) {
+      channel.send({
         type: 'broadcast',
         event: 'STROKE_MOVE',
         payload: { data: { x: nx, y: ny } }
@@ -352,8 +340,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const ctx = contextRef.current;
     if (ctx) ctx.closePath();
     if (onStrokeUpdate) onStrokeUpdate(0, 0, false);
-    if (channelRef.current && isSupabaseConfigured()) {
-      channelRef.current.send({
+    const channel = getSyncChannel();
+    if (channel) {
+      channel.send({
         type: 'broadcast',
         event: 'STROKE_END',
         payload: {}
@@ -384,12 +373,15 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasContent(false);
     
-    if (!isProjection && channelRef.current && isSupabaseConfigured()) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'CLEAR',
-        payload: {}
-      });
+    if (!isProjection) {
+      const channel = getSyncChannel();
+      if (channel) {
+        channel.send({
+          type: 'broadcast',
+          event: 'CLEAR',
+          payload: {}
+        });
+      }
     }
   }, [isProjection]);
 

@@ -17,6 +17,8 @@ const DEFAULT_WATER_FX = {
   wetnessSpread: 10.0,
   vignetteStart: 0.25,
   vignetteEnd: 0.85,
+  useCamera: true,
+  underwaterColor: [0.0, 0.15, 0.4], // Fondo azul profundo por defecto
 };
 
 const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} }, ref) => {
@@ -143,7 +145,7 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
       const float VIGNETTE_START = ${fx.vignetteStart.toFixed(2)};
       const float VIGNETTE_END = ${fx.vignetteEnd.toFixed(2)};
       
-      const vec3 underwaterColor = vec3(0.0, 0.5, 0.8); // Adjusted for more depth
+      const vec3 underwaterColor = vec3(${fx.underwaterColor[0]}, ${fx.underwaterColor[1]}, ${fx.underwaterColor[2]});
       const vec3 lightDir = normalize(vec3(0.5, 0.7, 0.5));
       const vec3 light2Dir = normalize(vec3(-0.8, 0.4, 0.2)); // Rim light source
 
@@ -344,7 +346,9 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
             }
         } catch (e) { console.error("Camera fail", e); }
     };
-    startCamera();
+    if (fx.useCamera) {
+        startCamera();
+    }
 
     // --- INTERACTION HANDLING ---
     const localMouse = { x: 0, y: 0, down: false };
