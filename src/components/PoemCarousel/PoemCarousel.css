@@ -100,6 +100,25 @@
   filter: sepia(0) contrast(1);
 }
 
+.card-image.is-png {
+  /* Invert so white handwriting becomes dark ink for the paper cards */
+  filter: invert(0.9) contrast(1.2);
+  object-fit: cover; /* Don't crop drawings */
+  padding: 12px;
+  opacity: 1; /* Drawing should be clear */
+  z-index: 2;
+}
+
+/* Ensure the card has a light background when it's a drawing so we can see the inverted ink */
+.carousel-card:has(.is-png) {
+  background: #f0f4f8; /* Light off-white for contrast */
+}
+
+.carousel-card:hover .card-image.is-png {
+  filter: invert(1) contrast(1.5);
+  transform: scale(1.05);
+}
+
 /* Overlay gradient for readability */
 .card-overlay {
   position: absolute;

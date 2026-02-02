@@ -35,16 +35,22 @@ const CarouselItem = React.memo(({ poem, index, onSelect }) => {
     >
       <div 
         className="carousel-card"
-        style={{ transform: `rotate(${angle}deg)` }}
+        style={{ 
+          transform: `rotate(${angle}deg)`,
+          background: (poem.image_url && /\.png($|\?)/i.test(poem.image_url)) ? '#f0f4f8' : undefined
+        }}
         onClick={() => onSelect(poem)}
       >
         {poem.image_url && !imgError ? (
           <img 
             src={poem.image_url} 
             alt={poem.emotion} 
-            className="card-image" 
+            className={`card-image ${/\.png($|\?)/i.test(poem.image_url) ? 'is-png' : ''}`}
             loading="lazy"
-            onError={() => setImgError(true)}
+            onError={() => {
+              console.warn('Failed to load image:', poem.image_url);
+              setImgError(true);
+            }}
           />
         ) : (
           <div 

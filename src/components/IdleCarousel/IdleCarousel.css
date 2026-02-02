@@ -1,0 +1,123 @@
+.idle-carousel-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  pointer-events: none;
+  transition: opacity 1s ease-in-out;
+}
+
+.fade-in {
+  opacity: 1;
+}
+
+.fade-out {
+  opacity: 0;
+}
+
+.idle-content-container {
+  max-width: 800px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.idle-label {
+  font-family: var(--font-handwriting);
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 2rem;
+  font-style: italic;
+}
+
+/* Image View */
+.idle-drawing-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.paper-frame {
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+  transform: none;
+  max-width: 800px;
+  width: 100%;
+  animation: idle-float 6s infinite ease-in-out;
+}
+
+.idle-image {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.3));
+}
+
+.idle-image.is-jpg {
+  /* Legacy JPGs have white background and black ink.
+     1. Invert: White BG -> Black, Black Ink -> White
+     2. Mix-blend-mode screen will then make the black parts transparent
+  */
+  filter: invert(1) contrast(1.2) brightness(1.1);
+  mix-blend-mode: screen;
+}
+
+.idle-emotion {
+  margin-top: 2rem;
+  font-family: var(--font-handwriting);
+  font-size: 2.2rem;
+  color: #fff;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+  transform: rotate(1deg);
+}
+
+/* Poem View */
+.idle-poem-view {
+  color: #fff;
+  animation: idle-float-alt 8s infinite ease-in-out;
+}
+
+.idle-poem-text {
+  font-family: var(--font-handwriting);
+  font-size: 2rem;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+}
+
+.idle-poem-text p {
+  margin-bottom: 0.5rem;
+}
+
+.idle-poem-footer {
+  font-family: var(--font-handwriting);
+  font-size: 1.4rem;
+  opacity: 0.7;
+}
+
+/* Animations */
+@keyframes idle-float {
+  0%, 100% { transform: translate(0, 0) rotate(-2deg); }
+  50% { transform: translate(10px, -20px) rotate(1deg); }
+}
+
+@keyframes idle-float-alt {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-10px, -15px); }
+}
+
+/* Response for projection mode - make it larger */
+.projection-mode .idle-poem-text {
+  font-size: 3.2rem;
+}
+
+.projection-mode .paper-frame {
+  max-width: 700px;
+}

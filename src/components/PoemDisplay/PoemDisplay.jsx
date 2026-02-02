@@ -3,7 +3,7 @@ import { createPoemAudio, cleanupAudioUrl, isElevenLabsConfigured } from '../../
 import { uploadAudio, updatePoemAudio, isSupabaseConfigured } from '../../services/supabase';
 import './PoemDisplay.css';
 
-export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, onNewPoem }) {
+export default function PoemDisplay({ poem, emotion, onInteraction, poemId, existingAudioUrl, illustration, isProjection, onNewPoem }) {
   const [visibleWords, setVisibleWords] = useState(0); 
   const [isAllComplete, setIsAllComplete] = useState(false);
   const [startTextAnimation, setStartTextAnimation] = useState(false);
@@ -15,6 +15,7 @@ export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, o
   const [audioError, setAudioError] = useState(null);
   const [isAudioReady, setIsAudioReady] = useState(false);
   const audioRef = useRef(null);
+  const hasAutoPlayedRef = useRef(false);
   
   const lines = poem ? poem.split('\n').filter(line => line.trim()) : [];
   const linesWithWords = lines.map(line => line.trim().split(/\s+/)); 
@@ -35,6 +36,7 @@ export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, o
     setIsLoadingAudio(false);
     setAudioError(null);
     setIsAudioReady(false);
+    hasAutoPlayedRef.current = false;
     
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poem]); 
@@ -161,10 +163,9 @@ export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, o
               await updatePoemAudio(poemId, permanentUrl);
               console.log('✅ Audio saved to database');
               
-              // Update to use permanent URL
-              URL.revokeObjectURL(tempUrl);
-              tempUrlToCleanup = null;
-              setAudioUrl(permanentUrl);
+              // Do not switch to permanent URL immediately to avoid interrupting playback
+              // The local blob URL (tempUrl) is already playing and works fine for this session.
+              // We just wanted to ensure it's saved to DB for future visits.
             }
           }
         }
@@ -193,6 +194,7 @@ export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, o
 
   // Audio control handlers
   const handlePlayPause = () => {
+    if (onInteraction) onInteraction();
     if (!audioRef.current) return;
     
     // Detect iOS standalone
@@ -227,6 +229,20 @@ export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, o
     console.log('✅ Audio ready to play');
     setIsAudioReady(true);
     setIsLoadingAudio(false);
+    
+    // Auto-play once when audio is ready
+    if (!hasAutoPlayedRef.current && audioRef.current) {
+      hasAutoPlayedRef.current = true;
+      console.log('🎵 Auto-playing audio...');
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.warn('Auto-play prevented by browser:', err);
+          // Reset flag so user can manually play
+          hasAutoPlayedRef.current = false;
+        });
+      }
+    }
   };
   const handleAudioError = (e) => {
     console.error('Audio loading error:', e);
@@ -240,7 +256,7 @@ export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, o
   let wordCounter = 0;
 
   return (
-    <div className="poem-display">
+    <div className={`poem-display ${isProjection ? 'projection-poem' : ''}`}>
       <div 
         key={poem} /* Force re-render animation on poem change */
         className="poem-container"
@@ -264,6 +280,14 @@ export default function PoemDisplay({ poem, emotion, poemId, existingAudioUrl, o
           ))}
         </div>
         
+        {/* Background Illustration */}
+        {illustration && (
+          <img 
+            src={illustration} 
+            alt="Poem Illustration" 
+            className={`illustration-bg ${illustration ? 'loaded' : ''}`}
+          />
+        )}
       </div>
       
       {/* Hidden audio element */}

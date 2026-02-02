@@ -7,6 +7,7 @@ import { isOpenAIConfigured, generatePoemMultimodal } from './services/ai';
 // Lazy load heavy components
 const PoemDisplay = lazy(() => import('./components/PoemDisplay/PoemDisplay'));
 const PoemCarousel = lazy(() => import('./components/PoemCarousel/PoemCarousel'));
+const IdleCarousel = lazy(() => import('./components/IdleCarousel/IdleCarousel'));
 import { savePoem, getRecentPoems, isSupabaseConfigured, uploadPoemInputImage } from './services/supabase';
 import { isElevenLabsConfigured } from './services/elevenlabs';
 import { getSyncChannel } from './services/sync';
@@ -40,6 +41,7 @@ const PROJECTION_WATER_FX = {
 };
 
 export default function App() {
+  const isProjectionMode = new URLSearchParams(window.location.search).get('view') === 'projection';
   const [appState, setAppState] = useState(STATES.WRITING);
   // FEATURE FLAG: Show gallery button on intro screen
   const SHOW_GALLERY = true; 
@@ -55,6 +57,8 @@ export default function App() {
   const [recentPoems, setRecentPoems] = useState([]);
   const [isPoemsLoading, setIsPoemsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isIdle, setIsIdle] = useState(false);
+  const lastActivityRef = useRef(Date.now());
 
   // Shared pointer state for water ripple effect
   const sharedPointerRef = useRef({ x: 0, y: 0, down: 0 });
@@ -102,6 +106,45 @@ export default function App() {
     console.info('ℹ️ ElevenLabs no configurado - La lectura de poemas estará deshabilitada');
   }
 
+  // Idle Mode Logic
+  const handleInteraction = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    if (isIdle) {
+      setIsIdle(false);
+      const channel = getSyncChannel();
+      if (channel) {
+        channel.send({
+          type: 'broadcast',
+          event: 'IDLE_STATUS',
+          payload: { data: { isIdle: false } }
+        });
+      }
+    }
+  }, [isIdle]);
+
+  useEffect(() => {
+    if (isProjectionMode) return; // Only controller tracks inactivity
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const idleTime = (now - lastActivityRef.current) / 1000;
+      
+      if (idleTime > 120 && !isIdle) { // 2 minutes
+        setIsIdle(true);
+        const channel = getSyncChannel();
+        if (channel) {
+          channel.send({
+            type: 'broadcast',
+            event: 'IDLE_STATUS',
+            payload: { data: { isIdle: true } }
+          });
+        }
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [isIdle, isProjectionMode]);
+
   const handleCanvasSubmit = useCallback(async (imageData) => {
     try {
       setAppState(STATES.PROCESSING);
@@ -138,8 +181,8 @@ export default function App() {
         let savedImageUrl = null;
         if (imageData && isSupabaseConfigured()) {
              console.log('⬆️ Uploading canvas input image...');
-             // imageData is already a DataURL (JPEG) from the canvas submission
-            savedImageUrl = await uploadPoemInputImage(imageData, recognizedEmotion);
+             savedImageUrl = await uploadPoemInputImage(imageData, recognizedEmotion);
+             if (savedImageUrl) setIllustration(savedImageUrl);
         }
 
         // Step 3: Upload & Save (non-blocking for UI, but blocking for DB consistency)
@@ -171,7 +214,8 @@ export default function App() {
       setError(err.message || 'Ocurrió un error. Intenta de nuevo.');
       setAppState(STATES.ERROR);
     }
-  }, []);
+    handleInteraction();
+  }, [handleInteraction]);
 
   const handleNewPoem = useCallback(() => {
     // Mandar señal de limpieza a la proyección vía Supabase Realtime
@@ -194,11 +238,13 @@ export default function App() {
     setPoemId(null);
     setExistingAudioUrl(null);
     setError(null);
-  }, []);
+    handleInteraction();
+  }, [handleInteraction]);
 
   const handleStartWriting = useCallback(() => {
     setWritingStage(WRITING_STAGES.CANVAS);
-  }, []);
+    handleInteraction();
+  }, [handleInteraction]);
 
   const handleSelectHistoryPoem = useCallback((poemItem) => {
     // Load a poem from history
@@ -217,7 +263,6 @@ export default function App() {
     }
   }, [recentPoems, handleSelectHistoryPoem]);
 
-  const isProjectionMode = new URLSearchParams(window.location.search).get('view') === 'projection';
 
   useEffect(() => {
     if (!isProjectionMode) {
@@ -256,6 +301,7 @@ export default function App() {
             setWritingStage(data.writingStage);
             setPoem(data.poem);
             setEmotion(data.emotion);
+            setIsIdle(false);
           }
         })
         .on('broadcast', { event: 'CLEAR' }, (payload) => {
@@ -266,11 +312,17 @@ export default function App() {
           setEmotion('');
           setPoemId(null);
           setExistingAudioUrl(null);
+          setIsIdle(false);
+        })
+        .on('broadcast', { event: 'IDLE_STATUS' }, (payload) => {
+          console.log('[PROJECTION] 📥 Estado de inactividad:', payload.payload.data.isIdle);
+          setIsIdle(payload.payload.data.isIdle);
         })
         .on('broadcast', { event: 'RELOAD_PROJECTION' }, () => {
           console.log('[PROJECTION] 📥 Señal de RELOAD recibida, recargando página...');
           window.location.reload();
-        });
+        })
+        .subscribe();
     }
 
     return () => {
@@ -301,29 +353,38 @@ export default function App() {
 
   if (isProjectionMode) {
     return (
-      <div className="app app-fullscreen app-fixed projection-view">
+      <div className="projection-view">
         <RippleBackground 
           ref={backgroundRef} 
           enabled={isRippleEnabled} 
           sharedPointerRef={sharedPointerRef} 
           config={PROJECTION_WATER_FX}
         />
-        {appState === STATES.POEM ? (
-           <Suspense fallback={null}>
-              <PoemDisplay 
-                poem={poem} 
-                emotion={emotion} 
-                isProjection={true} 
-              />
-           </Suspense>
+        {isIdle ? (
+          <Suspense fallback={null}>
+            <IdleCarousel />
+          </Suspense>
         ) : (
-          <WritingCanvas 
-            onSubmit={() => {}} 
-            isProcessing={false} 
-            fullScreen 
-            onStrokeUpdate={handleStrokeUpdate}
-            isProjection={true}
-          />
+          <>
+            {appState === STATES.POEM ? (
+               <Suspense fallback={null}>
+                  <PoemDisplay 
+                    poem={poem} 
+                    emotion={emotion} 
+                    illustration={illustration}
+                    isProjection={true} 
+                  />
+               </Suspense>
+            ) : (
+              <WritingCanvas 
+                onSubmit={() => {}} 
+                isProcessing={false} 
+                fullScreen 
+                onStrokeUpdate={handleStrokeUpdate}
+                isProjection={true}
+              />
+            )}
+          </>
         )}
       </div>
     );
@@ -358,6 +419,7 @@ export default function App() {
               onOpenGallery={handleOpenGallery}
               galleryCount={recentPoems.length}
               onInteractionStart={handleStartWriting}
+              onInteraction={handleInteraction}
             />
           </div>
       )}
@@ -397,9 +459,9 @@ export default function App() {
               poem={poem}
               emotion={emotion}
               existingAudioUrl={existingAudioUrl}
-              illustration={illustration}
               poemId={poemId}
               onNewPoem={handleNewPoem}
+              onInteraction={handleInteraction}
             />
           </Suspense>
         </div>
@@ -411,7 +473,10 @@ export default function App() {
           <PoemCarousel 
             poems={recentPoems} 
             isLoading={isPoemsLoading}
-            onSelect={handleSelectHistoryPoem} 
+            onSelect={(item) => {
+              handleInteraction();
+              handleSelectHistoryPoem(item);
+            }} 
           />
         </Suspense>
       )}

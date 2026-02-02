@@ -263,7 +263,7 @@ export async function createSession(deviceInfo = {}) {
 
 /**
  * Upload a poem input image (DataURL) to Supabase Storage
- * @param {string} dataUrl - Data URL string (data:image/jpeg;base64,...)
+ * @param {string} dataUrl - Data URL string (data:image/png;base64,...)
  * @param {string} emotion - Emotion for filename
  * @returns {Promise<string|null>} - Permanent Public URL
  */
@@ -274,7 +274,7 @@ export async function uploadPoemInputImage(dataUrl, emotion) {
   try {
     const timestamp = Date.now();
     const safeName = (emotion || 'input').trim().toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const filename = `input-${timestamp}-${safeName}.jpg`;
+    const filename = `input-${timestamp}-${safeName}.png`;
 
     // 1. Convert DataURL to Blob
     const res = await fetch(dataUrl);
@@ -284,7 +284,7 @@ export async function uploadPoemInputImage(dataUrl, emotion) {
     const { error: uploadError } = await supabase.storage
       .from('illustrations')
       .upload(filename, blob, {
-        contentType: 'image/jpeg',
+        contentType: 'image/png',
         upsert: false
       });
 

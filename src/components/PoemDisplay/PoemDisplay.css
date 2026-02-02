@@ -242,18 +242,27 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover; 
+  object-fit: contain; /* Don't crop drawings */
   opacity: 0;
-  border-radius: inherit; /* Inherit the organic shape from parent */
+  border-radius: inherit;
   pointer-events: none;
-  mix-blend-mode: multiply; 
   z-index: -1; 
-  transition: opacity 2s ease, transform 3s ease-out; /* Smooth transition */
+  transition: opacity 2s ease, transform 3s ease-out;
 }
 
 .illustration-bg.loaded {
-  opacity: 0.30; /* Target low opacity */
+  opacity: 0.15; /* Subtler in main view if it were there, but we using projection logic now */
   transform: scale(1);
+}
+
+.projection-poem .illustration-bg {
+  mix-blend-mode: screen; /* Make white strokes pop on dark background */
+  filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.4));
+  opacity: 0;
+}
+
+.projection-poem .illustration-bg.loaded {
+  opacity: 0.6; /* Stronger visibility on the floor */
 }
 
 /* Projection-specific styles */

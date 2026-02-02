@@ -15,7 +15,7 @@ const debounce = (func, wait) => {
   };
 };
 
-export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onInteractionStart, isProjection = false }) {
+export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onInteractionStart, onInteraction, isProjection = false }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -140,7 +140,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       window.removeEventListener('resize', debouncedResize);
       canvas.removeEventListener('dblclick', preventDoubleTap);
     };
-  }, [fullScreen]);
+  }, [fullScreen, isProjection]);
 
   const getPointerPosition = useCallback((e) => {
     const canvas = canvasRef.current;
@@ -182,6 +182,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
     if (onInteractionStart) onInteractionStart();
+    if (onInteraction) onInteraction();
     
     // Broadcast via Supabase Realtime
     const channel = getSyncChannel();
@@ -202,7 +203,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     setIsDrawing(true);
     setHasContent(true);
-  }, [getPointerPosition, onStrokeUpdate, onInteractionStart, isProjection]);
+  }, [getPointerPosition, onStrokeUpdate, onInteractionStart, isProjection, onInteraction]);
 
   const draw = useCallback((e) => {
     if (!isDrawing || isProjection) return;
@@ -283,6 +284,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const { x, y, nx, ny } = getTouchPosition(touch);
     
     if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    if (onInteraction) onInteraction();
     const channel = getSyncChannel();
     if (channel) {
       channel.send({
@@ -301,7 +303,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     setIsDrawing(true);
     setHasContent(true);
-  }, [getTouchPosition, onStrokeUpdate, isProjection]);
+  }, [getTouchPosition, onStrokeUpdate, isProjection, onInteraction]);
 
   const handleTouchMove = useCallback((e) => {
     if (!isDrawing || isProjection) return;
@@ -372,6 +374,7 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     const ctx = contextRef.current;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasContent(false);
+    if (onInteraction) onInteraction();
     
     if (!isProjection) {
       const channel = getSyncChannel();
@@ -383,29 +386,19 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
         });
       }
     }
-  }, [isProjection]);
+  }, [isProjection, onInteraction]);
 
   const handleSubmit = useCallback(() => {
     if (!hasContent || isProcessing) return;
     
     const canvas = canvasRef.current;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    const tCtx = tempCanvas.getContext('2d');
     
-    tCtx.fillStyle = '#FFFFFF';
-    tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    // Convert to transparent PNG
+    const imageData = canvas.toDataURL('image/png');
     
-    if (fullScreen) {
-        tCtx.globalCompositeOperation = 'difference';
-    }
-    tCtx.drawImage(canvas, 0, 0);
-    tCtx.globalCompositeOperation = 'source-over';
-    
-    const imageData = tempCanvas.toDataURL('image/jpeg', 0.85);
+    if (onInteraction) onInteraction();
     onSubmit(imageData);
-  }, [hasContent, isProcessing, onSubmit, fullScreen]);
+  }, [hasContent, isProcessing, onSubmit, onInteraction]);
 
   return (
     <div className={`writing-canvas-container ${fullScreen ? 'fullscreen' : ''} ${isProjection ? 'projection-canvas' : ''}`}>
