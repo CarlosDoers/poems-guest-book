@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { getRecentPoems } from '../../services/supabase';
 import './IdleCarousel.css';
 
@@ -6,6 +6,8 @@ export default function IdleCarousel() {
   const [displayItems, setDisplayItems] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [fade, setFade] = useState(true);
+  const audioRef = useRef(null);
+  const [visibleWords, setVisibleWords] = useState(0); // Estado para la animación de texto
 
   // Fetch items on mount and create paired image-text sequence
   useEffect(() => {
@@ -38,22 +40,97 @@ export default function IdleCarousel() {
     return () => clearInterval(refreshInterval);
   }, []);
 
-  // Cycle through items
+  // Handle Audio Playback when item changes
+  useEffect(() => {
+    if (!displayItems.length) return;
+    
+    const current = displayItems[currentIndex];
+    const isText = current && current.type === 'text';
+    const hasAudio = current && current.poem && current.poem.audio_url;
+
+    if (audioRef.current) {
+      // Pause any ongoing playback first
+      audioRef.current.pause();
+      
+      if (isText && hasAudio && fade) { // Only start when fading in
+          audioRef.current.src = current.poem.audio_url;
+          audioRef.current.load();
+          
+          const playPromise = audioRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+               // Auto-play might be blocked until user interaction
+               if (error.name !== 'AbortError') {
+                 console.warn('Idle audio playback prevented:', error);
+               }
+            });
+          }
+      }
+    }
+  }, [currentIndex, fade, displayItems]);
+
+  // Cycle through items with Dynamic Duration
   useEffect(() => {
     if (displayItems.length === 0) return;
 
-    const interval = setInterval(() => {
+    const currentItem = displayItems[currentIndex];
+    const isText = currentItem?.type === 'text';
+    
+    // Tiempos ajustados: 25s para leer poemas (antes 10s), 15s para ver dibujos
+    const displayDuration = isText ? 25000 : 15000;
+
+    const timer = setTimeout(() => {
       setFade(false);
       setTimeout(() => {
         setCurrentIndex((prev) => (prev + 1) % displayItems.length);
+        setVisibleWords(0); // Reset words
         setFade(true);
-      }, 1000); // Wait for fade out
-    }, 10000); // 10 seconds per item
+      }, 1000); // fade out duration
+    }, displayDuration);
 
-    return () => clearInterval(interval);
-  }, [displayItems.length]);
+    return () => clearTimeout(timer);
+  }, [currentIndex, displayItems]);
 
   const currentItem = displayItems[currentIndex];
+
+  // Logic for text animation
+  const linesWithWords = useMemo(() => {
+    if (!currentItem || currentItem.type !== 'text') return [];
+    return currentItem.poem.poem.split('\n')
+      .filter(line => line.trim())
+      .map(line => line.trim().split(/\s+/));
+  }, [currentItem]);
+
+  const totalWords = useMemo(() => linesWithWords.flat().length, [linesWithWords]);
+
+  useEffect(() => {
+    if (!currentItem || currentItem.type !== 'text' || !fade) return;
+
+    let current = 0;
+    let isCancelled = false;
+
+    const showNextWord = () => {
+      if (isCancelled) return;
+      
+      setVisibleWords(prev => {
+        const next = prev + 1;
+        current = next;
+        return next;
+      });
+
+      if (current < totalWords) {
+        // Velocidad natural de lectura (similar a PoemDisplay)
+        const delay = 100 + Math.random() * 80;
+        setTimeout(showNextWord, delay);
+      }
+    };
+
+    const initialDelay = setTimeout(showNextWord, 500);
+    return () => {
+      isCancelled = true;
+      clearTimeout(initialDelay);
+    };
+  }, [currentIndex, fade, totalWords]); // Re-run when fade in completes or item changes
 
   if (displayItems.length === 0 || !currentItem) return null;
 
@@ -76,13 +153,32 @@ export default function IdleCarousel() {
         ) : (
           <div className="idle-poem-view">
             <div className="idle-poem-text">
-              {poem.poem.split('\n').map((line, i) => (
-                <p key={i}>{line}</p>
+              {linesWithWords.map((words, lineIdx) => (
+                <p key={lineIdx} className="idle-line">
+                  {words.map((word, wordIdx) => {
+                    // Calculate global index for this word
+                    const previousWordsCount = linesWithWords
+                      .slice(0, lineIdx)
+                      .reduce((acc, line) => acc + line.length, 0);
+                    const globalIndex = previousWordsCount + wordIdx;
+                    const isVisible = globalIndex < visibleWords;
+                    
+                    return (
+                      <span 
+                        key={wordIdx} 
+                        className={`idle-word ${isVisible ? 'visible' : ''}`}
+                      >
+                        {word}{' '}
+                      </span>
+                    );
+                  })}
+                </p>
               ))}
             </div>
           </div>
         )}
       </div>
+      <audio ref={audioRef} style={{ display: 'none' }} />
     </div>
   );
 }

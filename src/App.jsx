@@ -301,6 +301,9 @@ export default function App() {
             setWritingStage(data.writingStage);
             setPoem(data.poem);
             setEmotion(data.emotion);
+            setPoemId(data.poemId || null);
+            setIllustration(data.illustration || null);
+            setExistingAudioUrl(data.existingAudioUrl || null);
             setIsIdle(false);
           }
         })
@@ -339,11 +342,11 @@ export default function App() {
         channel.send({
           type: 'broadcast',
           event: 'STATE_CHANGE',
-          payload: { data: { appState, writingStage, poem, emotion } }
+          payload: { data: { appState, writingStage, poem, emotion, poemId, illustration, existingAudioUrl } }
         });
       }
     }
-  }, [appState, writingStage, poem, emotion, isProjectionMode]);
+  }, [appState, writingStage, poem, emotion, poemId, illustration, existingAudioUrl, isProjectionMode]);
 
   const isWritingIntro = appState === STATES.WRITING && writingStage === WRITING_STAGES.INTRO;
   const isWritingCanvas = appState === STATES.WRITING && writingStage === WRITING_STAGES.CANVAS;
@@ -372,6 +375,8 @@ export default function App() {
                     poem={poem} 
                     emotion={emotion} 
                     illustration={illustration}
+                    poemId={poemId}
+                    existingAudioUrl={existingAudioUrl}
                     isProjection={true} 
                   />
                </Suspense>

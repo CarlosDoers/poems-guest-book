@@ -230,10 +230,10 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
     setIsAudioReady(true);
     setIsLoadingAudio(false);
     
-    // Auto-play once when audio is ready
-    if (!hasAutoPlayedRef.current && audioRef.current) {
+    // Auto-play SOLO en la pantalla de control (NO en proyección)
+    if (!isProjection && !hasAutoPlayedRef.current && audioRef.current) {
       hasAutoPlayedRef.current = true;
-      console.log('🎵 Auto-playing audio...');
+      console.log('🎵 Auto-playing audio on controller screen...');
       const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch(err => {
@@ -290,8 +290,8 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
         )}
       </div>
       
-      {/* Hidden audio element */}
-      {audioUrl && (
+      {/* Hidden audio element - Only on control screen */}
+      {audioUrl && !isProjection && (
         <audio
           ref={audioRef}
           src={audioUrl}
