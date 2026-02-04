@@ -279,13 +279,12 @@
 }
 
 .projection-poem .poem-text-line {
-  font-size: clamp(1.8rem, 3.5vw, 2.2rem); /* Tamaño reducido para la proyección */
-  line-height: 0.6;
+  font-size: 2.8rem;
+  line-height: 1.2;
   text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8); /* Stronger shadow for floor */
   color: rgba(255, 255, 255, 0.95);
 }
 
 .projection-poem .poem-word {
-  font-size: clamp(1.8rem, 3.5vw, 2.2rem);
   transition-duration: 2s;
 }

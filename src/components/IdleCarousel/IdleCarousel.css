@@ -136,7 +136,8 @@
 
 /* Response for projection mode - make it larger */
 .projection-mode .idle-poem-text {
-  font-size: 3.2rem;
+  font-size: 54px;
+  line-height: 1.4;
 }
 
 .projection-mode .paper-frame {
