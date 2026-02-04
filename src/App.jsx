@@ -129,7 +129,7 @@ export default function App() {
       const now = Date.now();
       const idleTime = (now - lastActivityRef.current) / 1000;
       
-      if (idleTime > 120 && !isIdle) { // 2 minutes
+      if (idleTime > 60 && !isIdle) { // 1 minute
         setIsIdle(true);
         const channel = getSyncChannel();
         if (channel) {
