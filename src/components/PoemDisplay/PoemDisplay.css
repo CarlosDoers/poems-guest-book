@@ -286,5 +286,5 @@
 }
 
 .projection-poem .poem-word {
-  /* Al eliminar el transition-duration: 2s, hereda la animación rápida de la pantalla principal */
+  transition-duration: 2s;
 }
