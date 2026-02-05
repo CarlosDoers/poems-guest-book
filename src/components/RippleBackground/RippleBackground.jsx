@@ -336,28 +336,22 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
     const handleInteraction = () => {
         // Read either shared pointer (from WritingCanvas) or local events
         const pointer = sharedPointerRef ? sharedPointerRef.current : null;
-        const x = pointer ? pointer.x : localMouse.x;
-        const y = pointer ? pointer.y : localMouse.y;
-
-        // Wait, WaterSimulation expects coordinates in local space? No, usually -1 to 1 or 0 to 1.
-        // Let's check DropShader in WaterSimulation: expects coords relative to texture.
         
-        // Convert screen pixels to -1..1 range for the simulation
-        const px = (x / gl.canvas.width) * 2 - 1;
-        const py = (y / gl.canvas.height) * 2 - 1; 
-
-        // Check if down
-        const isDown = pointer ? pointer.down : localMouse.down;
+        let px, py;
+        const isDown = pointer ? (pointer.down > 0) : localMouse.down;
+        
+        if (pointer) {
+            // pointer.x and pointer.y are already viewport-normalized (0..1)
+            // Flip Y so that ny=0 maps to py=1 (top)
+            px = pointer.x * 2.0 - 1.0;
+            py = (1.0 - pointer.y) * 2.0 - 1.0;
+        } else {
+            // Fallback (currently unused)
+            px = (localMouse.x / canvas.width) * 2.0 - 1.0;
+            py = (1.0 - (localMouse.y / canvas.height)) * 2.0 - 1.0;
+        }
         
         if (isDown) {
-             // Add drop
-             // In screen space (0-1) or NDCs (-1 to 1)?
-             // The simulation `dropShader` uses `length(center * 0.5 + 0.5 - coord)`. 
-             // `coord` is 0..1 in the texture.
-             // So if we pass center as -1..1 (NDC), the formula `center * 0.5 + 0.5` converts it to 0..1.
-             // Correct.
-             
-             // Radius: 0.03 is good. Strength: 0.04.
              waterSim.addDrop(px, py, 0.04, 0.02);
         }
     };

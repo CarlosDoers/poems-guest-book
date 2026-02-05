@@ -64,12 +64,11 @@ export default function App() {
   const sharedPointerRef = useRef({ x: 0, y: 0, down: 0 });
   const backgroundRef = useRef(null); // Reference to capture video snapshot
 
-  const handleStrokeUpdate = useCallback((x, y, isDown) => {
+  const handleStrokeUpdate = useCallback((vx, vy, isDown) => {
     if (sharedPointerRef.current) {
-      const dpr = window.devicePixelRatio || 1;
-      // Convert top-left coordinates to bottom-left (GL style) and scale by DPR
-      sharedPointerRef.current.x = x * dpr;
-      sharedPointerRef.current.y = (window.innerHeight - y) * dpr;
+      // vx and vy are viewport-normalized (0 to 1)
+      sharedPointerRef.current.x = vx;
+      sharedPointerRef.current.y = vy;
       sharedPointerRef.current.down = isDown ? 1 : 0;
     }
   }, []);

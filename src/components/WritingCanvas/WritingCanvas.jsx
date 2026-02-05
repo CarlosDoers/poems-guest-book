@@ -41,7 +41,13 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
           ctx.beginPath();
           ctx.moveTo(x, y);
           ctx.lineWidth = 12;
-          if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+          
+          if (onStrokeUpdate) {
+            // Convert canvas-relative to viewport-relative
+            const vx = (rect.left + x) / window.innerWidth;
+            const vy = (rect.top + y) / window.innerHeight;
+            onStrokeUpdate(vx, vy, true);
+          }
           setHasContent(true);
         })
         .on('broadcast', { event: 'STROKE_MOVE' }, (payload) => {
@@ -57,7 +63,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
           ctx.stroke();
           ctx.beginPath();
           ctx.moveTo(x, y);
-          if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+          
+          if (onStrokeUpdate) {
+            const vx = (rect.left + x) / window.innerWidth;
+            const vy = (rect.top + y) / window.innerHeight;
+            onStrokeUpdate(vx, vy, true);
+          }
         })
         .on('broadcast', { event: 'STROKE_END' }, () => {
           const ctx = contextRef.current;
@@ -150,9 +161,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
       pressure: e.pressure || 0.5,
-      // Normalized coordinates (0-1) for sync
+      // Normalized coordinates (0-1) relative to canvas for sync
       nx: (e.clientX - rect.left) / rect.width,
-      ny: (e.clientY - rect.top) / rect.height
+      ny: (e.clientY - rect.top) / rect.height,
+      // Viewport normalized coordinates for local effect
+      vx: e.clientX / window.innerWidth,
+      vy: e.clientY / window.innerHeight
     };
   }, []);
 
@@ -165,7 +179,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       y: touch.clientY - rect.top,
       pressure: touch.force || 0.5,
       nx: (touch.clientX - rect.left) / rect.width,
-      ny: (touch.clientY - rect.top) / rect.height
+      ny: (touch.clientY - rect.top) / rect.height,
+      vx: touch.clientX / window.innerWidth,
+      vy: touch.clientY / window.innerHeight
     };
   }, []);
 
@@ -178,9 +194,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
       e.target.setPointerCapture(e.pointerId);
     }
     
-    const { x, y, nx, ny } = getPointerPosition(e);
+    const { x, y, nx, ny, vx, vy } = getPointerPosition(e);
     
-    if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    if (onStrokeUpdate) onStrokeUpdate(vx, vy, true);
     if (onInteractionStart) onInteractionStart();
     if (onInteraction) onInteraction();
     
@@ -216,12 +232,12 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     if (e.getCoalescedEvents) {
         const events = e.getCoalescedEvents();
         for (const event of events) {
-            const { x, y, nx, ny } = getPointerPosition(event);
+            const { x, y, nx, ny, vx, vy } = getPointerPosition(event);
             ctx.lineTo(x, y);
             ctx.stroke();
             ctx.beginPath();
             ctx.moveTo(x, y);
-            if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+            if (onStrokeUpdate) onStrokeUpdate(vx, vy, true);
             const channel = getSyncChannel();
             if (channel) {
               channel.send({
@@ -232,8 +248,8 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
             }
         }
     } else {
-        const { x, y, nx, ny } = getPointerPosition(e);
-        if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+        const { x, y, nx, ny, vx, vy } = getPointerPosition(e);
+        if (onStrokeUpdate) onStrokeUpdate(vx, vy, true);
         const channel = getSyncChannel();
         if (channel) {
           channel.send({
@@ -281,9 +297,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     lastTouchRef.current = Date.now();
     const touch = e.touches[0];
-    const { x, y, nx, ny } = getTouchPosition(touch);
+    const { x, y, nx, ny, vx, vy } = getTouchPosition(touch);
     
-    if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    if (onStrokeUpdate) onStrokeUpdate(vx, vy, true);
     if (onInteraction) onInteraction();
     const channel = getSyncChannel();
     if (channel) {
@@ -312,9 +328,9 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     lastTouchRef.current = Date.now();
     const touch = e.touches[0];
-    const { x, y, nx, ny } = getTouchPosition(touch);
+    const { x, y, nx, ny, vx, vy } = getTouchPosition(touch);
     
-    if (onStrokeUpdate) onStrokeUpdate(x, y, true);
+    if (onStrokeUpdate) onStrokeUpdate(vx, vy, true);
     const channel = getSyncChannel();
     if (channel) {
       channel.send({
