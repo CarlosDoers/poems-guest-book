@@ -121,7 +121,7 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
 
     // This shader mixes the Camera Feed with the Water Heightmap
     const fragSrc = `
-      precision highp float;
+      precision mediump float;
       varying vec2 vUv;
       
       uniform sampler2D uWater; // Physics Simulation (Height in R, Normal in BA)
@@ -129,6 +129,7 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
       uniform vec2 uResolution;
       uniform vec2 uVideoRes;
       uniform float uVideoReady;
+      uniform vec4 uVideoTransform; // [scaleX, scaleY, offsetX, offsetY]
       
       // Inyectamos valores de configuración dinámicos
       const float REFRACTION = ${fx.refraction.toFixed(4)};
@@ -165,56 +166,34 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
          vec2 vidUv = uv;
          
          if (uVideoReady > 0.5) {
-             // Calculate video UVs with Aspect Ratio preservation and Mirroring
-             float screenAspect = uResolution.x / uResolution.y;
-             float vW = max(uVideoRes.x, 1.0);
-             float vH = max(uVideoRes.y, 1.0);
-             float videoAspect = vW / vH;
-             
-             vec2 texScale = vec2(1.0);
-             if (screenAspect > videoAspect) {
-                 texScale.y = videoAspect / screenAspect;
-             } else {
-                 texScale.x = screenAspect / videoAspect;
-             }
-             
-             // Center and scale
-             vidUv = (uv - 0.5) * texScale + 0.5;
+             // Optimized UV calculation using pre-calculated transform
+             vidUv = (uv - uVideoTransform.zw) * uVideoTransform.xy + uVideoTransform.zw;
              vidUv.x = 1.0 - vidUv.x; // Mirror X
              
-             // Refraction with Chromatic Aberration
              vec2 refr = normal.xz * REFRACTION;
-             
-             // Radial Blur based on distance from center
              float distFromCenter = distance(vidUv, vec2(0.5));
              float blurFactor = smoothstep(BLUR_START, BLUR_END, distFromCenter); 
              float appliedBlur = BLUR_MAX * blurFactor;
-             vec2 px = vec2(1.0) / max(uVideoRes, vec2(1.0));
              
-             // Multi-tap sample for RGB channels with slight offsets (aberration)
-             vec3 finalColor = vec3(0.0);
-             float r = texture2D(uVideo, clamp(vidUv - refr * 1.1, 0.002, 0.998)).r;
-             float g = texture2D(uVideo, clamp(vidUv - refr * 1.0, 0.002, 0.998)).g;
-             float b = texture2D(uVideo, clamp(vidUv - refr * 0.9, 0.002, 0.998)).b;
-             vec3 baseSample = vec3(r, g, b);
-
-             // Apply blur if needed
              if (appliedBlur > 0.1) {
-                 for(float i = -1.0; i <= 1.0; i+=1.0) {
-                     for(float j = -1.0; j <= 1.0; j+=1.0) {
-                         vec2 off = vec2(i, j) * appliedBlur * px;
-                         vec3 s;
-                         s.r = texture2D(uVideo, clamp(vidUv - refr * 1.1 + off, 0.002, 0.998)).r;
-                         s.g = texture2D(uVideo, clamp(vidUv - refr * 1.0 + off, 0.002, 0.998)).g;
-                         s.b = texture2D(uVideo, clamp(vidUv - refr * 0.9 + off, 0.002, 0.998)).b;
-                         finalColor += s;
-                     }
-                 }
-                 color = finalColor / 9.0;
+                 // Optimized 5-tap cross blur (much faster than 9-tap 2D loop)
+                 // This reduces texture samples from 27 to 5
+                 vec2 px = 1.0 / uVideoRes;
+                 vec2 off = appliedBlur * px;
+                 vec2 finalUv = vidUv - refr;
+                 
+                 vec3 blur = texture2D(uVideo, clamp(finalUv, 0.002, 0.998)).rgb;
+                 blur += texture2D(uVideo, clamp(finalUv + vec2(off.x, 0.0), 0.002, 0.998)).rgb;
+                 blur += texture2D(uVideo, clamp(finalUv - vec2(off.x, 0.0), 0.002, 0.998)).rgb;
+                 blur += texture2D(uVideo, clamp(finalUv + vec2(0.0, off.y), 0.002, 0.998)).rgb;
+                 blur += texture2D(uVideo, clamp(finalUv - vec2(0.0, off.y), 0.002, 0.998)).rgb;
+                 color = blur * 0.2;
              } else {
-                 color = baseSample;
+                 // Simple 3-tap Chromatic Aberration (only when not blurred for sharpness)
+                 color.r = texture2D(uVideo, clamp(vidUv - refr * 1.1, 0.002, 0.998)).r;
+                 color.g = texture2D(uVideo, clamp(vidUv - refr * 1.0, 0.002, 0.998)).g;
+                 color.b = texture2D(uVideo, clamp(vidUv - refr * 0.9, 0.002, 0.998)).b;
              }
-
          } else {
              color = mix(underwaterColor * 0.2, underwaterColor * 0.5, height * 0.5 + 0.5);
          }
@@ -289,7 +268,8 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
         uVideo: gl.getUniformLocation(program, 'uVideo'),
         uResolution: gl.getUniformLocation(program, 'uResolution'),
         uVideoRes: gl.getUniformLocation(program, 'uVideoRes'),
-        uVideoReady: gl.getUniformLocation(program, 'uVideoReady')
+        uVideoReady: gl.getUniformLocation(program, 'uVideoReady'),
+        uVideoTransform: gl.getUniformLocation(program, 'uVideoTransform')
     };
     
     // Set texture slots
@@ -396,7 +376,8 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
 
     // --- RENDER LOOP ---
     const resize = () => {
-        const dpr = window.devicePixelRatio || 1;
+        // Cap resolution to 1.5x for iPad Pro to avoid fill-rate bottleneck
+        const dpr = Math.min(1.5, window.devicePixelRatio || 1);
         const w = Math.floor(window.innerWidth * dpr);
         const h = Math.floor(window.innerHeight * dpr);
         if (canvas.width !== w || canvas.height !== h) {
@@ -440,6 +421,19 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
              gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
              gl.uniform2f(locs.uVideoRes, video.videoWidth || 1280, video.videoHeight || 720);
              gl.uniform1f(locs.uVideoReady, 1.0);
+             
+             // Pre-calculate UV transform on CPU
+             const screenAspect = canvas.width / canvas.height;
+             const vW = video.videoWidth || 1280;
+             const vH = video.videoHeight || 720;
+             const videoAspect = vW / vH;
+             let scaleX = 1, scaleY = 1;
+             if (screenAspect > videoAspect) {
+                 scaleY = videoAspect / screenAspect;
+             } else {
+                 scaleX = screenAspect / videoAspect;
+             }
+             gl.uniform4f(locs.uVideoTransform, scaleX, scaleY, 0.5, 0.5);
         } else {
              gl.uniform1f(locs.uVideoReady, 0.0);
         }

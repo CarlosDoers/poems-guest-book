@@ -35,7 +35,12 @@ export class WaterSimulation {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, linear ? gl.LINEAR : gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, linear ? gl.LINEAR : gl.NEAREST);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, null);
+      
+      // Use Half Float if possible for better mobile performance
+      const ext = gl.getExtension('OES_texture_half_float');
+      const type = ext ? ext.HALF_FLOAT_OES : gl.FLOAT;
+      
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, type, null);
       return tex;
     };
 
@@ -63,8 +68,8 @@ export class WaterSimulation {
 
     // Drop Shader (Input interaction)
     this.dropProgram = this.createProgram(vertexShader, `
-      precision highp float;
-      const float PI = 3.141592653589793;
+      precision mediump float;
+      const float PI = 3.14159265;
       uniform sampler2D texture;
       uniform vec2 center;
       uniform float radius;
@@ -81,19 +86,17 @@ export class WaterSimulation {
 
     // Update Shader (Physics simulation)
     this.updateProgram = this.createProgram(vertexShader, `
-      precision highp float;
+      precision mediump float;
       uniform sampler2D texture;
       uniform vec2 delta;
       varying vec2 coord;
       void main() {
         vec4 info = texture2D(texture, coord);
-        vec2 dx = vec2(delta.x, 0.0);
-        vec2 dy = vec2(0.0, delta.y);
         float average = (
-          texture2D(texture, coord - dx).r +
-          texture2D(texture, coord - dy).r +
-          texture2D(texture, coord + dx).r +
-          texture2D(texture, coord + dy).r
+          texture2D(texture, coord - vec2(delta.x, 0.0)).r +
+          texture2D(texture, coord - vec2(0.0, delta.y)).r +
+          texture2D(texture, coord + vec2(delta.x, 0.0)).r +
+          texture2D(texture, coord + vec2(0.0, delta.y)).r
         ) * 0.25;
         info.g += (average - info.r) * 2.0;
         info.g *= 0.995;
@@ -105,15 +108,18 @@ export class WaterSimulation {
     // Normal Shader (Calculate normals from heightmap)
     // We store normal in BA components
     this.normalProgram = this.createProgram(vertexShader, `
-      precision highp float;
+      precision mediump float;
       uniform sampler2D texture;
       uniform vec2 delta;
       varying vec2 coord;
       void main() {
         vec4 info = texture2D(texture, coord);
-        vec3 dx = vec3(delta.x, texture2D(texture, vec2(coord.x + delta.x, coord.y)).r - info.r, 0.0);
-        vec3 dy = vec3(0.0, texture2D(texture, vec2(coord.x, coord.y + delta.y)).r - info.r, delta.y);
-        info.ba = normalize(cross(dy, dx)).xz;
+        float hL = texture2D(texture, coord - vec2(delta.x, 0.0)).r;
+        float hR = texture2D(texture, coord + vec2(delta.x, 0.0)).r;
+        float hU = texture2D(texture, coord - vec2(0.0, delta.y)).r;
+        float hD = texture2D(texture, coord + vec2(0.0, delta.y)).r;
+        
+        info.ba = normalize(vec3(hL - hR, 2.0 * delta.x, hU - hD)).xz;
         gl_FragColor = info;
       }
     `);
