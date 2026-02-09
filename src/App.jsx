@@ -34,10 +34,10 @@ const PROJECTION_WATER_FX = {
   refraction: 0.05,
   autoWaveStrength: 0.3,
   skyColor: [0.7, 0.85, 1.0], // [0.7, 0.85, 1.0] Celeste claro para los reflejos en el suelo
-  vignetteStart: 0.2, // El círculo empieza a oscurecerse un poco después del centro
+  vignetteStart: 0.3, // El círculo empieza a oscurecerse un poco después del centro
   vignetteEnd: 0.5,   // Oscuridad total antes de llegar a los bordes rectangulares
   useCamera: false,   // No usar la cámara en la proyección
-  underwaterColor: [0.03, 0.15, 0.4], // Azul profundo para el fondo
+  underwaterColor: [0.33, 0.35, 0.3], // Azul profundo para el fondo
 };
 
 export default function App() {
@@ -412,7 +412,7 @@ export default function App() {
           <div className="writing-screen">
             {/* Hint only shows when actively writing (not in intro overlay) */}
             {isWritingCanvas && (
-                 <div className="writing-hint">Usa el boli para escribir una emoción</div>
+                 <div className="writing-hint">Usa el lápiz para escribir o dibujar una emoción</div>
              )}
             
             <WritingCanvas 
