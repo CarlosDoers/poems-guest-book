@@ -32,8 +32,8 @@ const PROJECTION_WATER_FX = {
   filterOpacity: 0.5,
   shineIntensity: 2.0, // antes 3.0
   refraction: 0.05,
-  autoWaveStrength: 0.5,
-  skyColor: [0.2, 0.35, 0.5], // [0.7, 0.85, 1.0] Celeste claro para los reflejos en el suelo
+  autoWaveStrength: 0.3,
+  skyColor: [0.7, 0.85, 1.0], // [0.7, 0.85, 1.0] Celeste claro para los reflejos en el suelo
   vignetteStart: 0.2, // El círculo empieza a oscurecerse un poco después del centro
   vignetteEnd: 0.5,   // Oscuridad total antes de llegar a los bordes rectangulares
   useCamera: false,   // No usar la cámara en la proyección

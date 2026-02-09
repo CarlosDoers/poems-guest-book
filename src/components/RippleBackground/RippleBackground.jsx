@@ -79,9 +79,8 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
     gl.getExtension('OES_texture_half_float_linear');
 
     // Initialize Physics Simulation
-    // We use a lower resolution for valid physics simulation (256x256 is enough for fluid)
-    // but we can scale it up. 256 is usually plenty and fast.
-    const simRes = 256; 
+    // Optimized: 192x192 provides ~44% less pixels to process while maintaining quality
+    const simRes = 192; 
     let waterSim;
     try {
         waterSim = new WaterSimulation(gl, simRes, simRes);
@@ -175,19 +174,16 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
              float blurFactor = smoothstep(BLUR_START, BLUR_END, distFromCenter); 
              float appliedBlur = BLUR_MAX * blurFactor;
              
-             if (appliedBlur > 0.1) {
-                 // Optimized 5-tap cross blur (much faster than 9-tap 2D loop)
-                 // This reduces texture samples from 27 to 5
-                 vec2 px = 1.0 / uVideoRes;
-                 vec2 off = appliedBlur * px;
-                 vec2 finalUv = vidUv - refr;
-                 
-                 vec3 blur = texture2D(uVideo, clamp(finalUv, 0.002, 0.998)).rgb;
-                 blur += texture2D(uVideo, clamp(finalUv + vec2(off.x, 0.0), 0.002, 0.998)).rgb;
-                 blur += texture2D(uVideo, clamp(finalUv - vec2(off.x, 0.0), 0.002, 0.998)).rgb;
-                 blur += texture2D(uVideo, clamp(finalUv + vec2(0.0, off.y), 0.002, 0.998)).rgb;
-                 blur += texture2D(uVideo, clamp(finalUv - vec2(0.0, off.y), 0.002, 0.998)).rgb;
-                 color = blur * 0.2;
+              if (appliedBlur > 0.1) {
+                  // Ultra-optimized 3-tap diagonal blur (covers more area, fewer samples)
+                  // Reduces texture samples from 5 to 3 for ~40% less texture bandwidth
+                  vec2 px = 1.0 / uVideoRes;
+                  vec2 off = appliedBlur * px;
+                  vec2 finalUv = vidUv - refr;
+                  
+                  color = texture2D(uVideo, clamp(finalUv, 0.002, 0.998)).rgb * 0.4;
+                  color += texture2D(uVideo, clamp(finalUv + off, 0.002, 0.998)).rgb * 0.3;
+                  color += texture2D(uVideo, clamp(finalUv - off, 0.002, 0.998)).rgb * 0.3;
              } else {
                  // Simple 3-tap Chromatic Aberration (only when not blurred for sharpness)
                  color.r = texture2D(uVideo, clamp(vidUv - refr * 1.1, 0.002, 0.998)).r;
@@ -203,27 +199,28 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
          vec3 reflectDir = reflect(-lightDir, normal);
          vec3 reflect2Dir = reflect(-light2Dir, normal);
          
-         // Fresnel effect: more reflective at grazing angles
-         float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 4.0);
-         
-         // Specular 1 (Main light)
-         float broadSpecular = pow(max(dot(viewDir, reflectDir), 0.0), WET_SPREAD);
-         float sharpSpecular = pow(max(dot(viewDir, reflectDir), 0.0), SHINE_SHARP);
-         
-         // Specular 2 (Rim light)
-         float rimSpecular = pow(max(dot(viewDir, reflect2Dir), 0.0), WET_SPREAD * 0.5);
-         
-         // 4. Combined Effects
-         // Base Color + Tint
-         color = mix(color, FILTER_COLOR, FILTER_OPACITY);
-         
-         // Add "Surface depth" - subtle dark/light based on height
-         color += height * 0.15; 
-         
-         // Add lighting
-         vec3 lighting = vec3(broadSpecular) * WET_INT;
-         lighting += vec3(sharpSpecular) * SHINE_INT;
-         lighting += vec3(rimSpecular) * (WET_INT * 0.4);
+          // Fresnel effect: more reflective at grazing angles
+          // Optimized: approximate pow(1-x, 4) without pow()
+          float nDotV = max(dot(normal, viewDir), 0.0);
+          float oneMinusNdotV = 1.0 - nDotV;
+          float fresnel = oneMinusNdotV * oneMinusNdotV;
+          fresnel = fresnel * fresnel; // (1-x)^4
+          
+          // Specular - Combined calculation (removed rim light for performance)
+          float specDot = max(dot(viewDir, reflectDir), 0.0);
+          float broadSpecular = pow(specDot, WET_SPREAD);
+          float sharpSpecular = pow(specDot, SHINE_SHARP);
+          
+          // 4. Combined Effects
+          // Base Color + Tint
+          color = mix(color, FILTER_COLOR, FILTER_OPACITY);
+          
+          // Add "Surface depth" - subtle dark/light based on height
+          color += height * 0.15; 
+          
+          // Add lighting (simplified - removed rim light)
+          vec3 lighting = vec3(broadSpecular) * WET_INT;
+          lighting += vec3(sharpSpecular) * SHINE_INT;
          
          // Fake environment reflection (Sky-like gradient)
          color = mix(color, SKY_COLOR, fresnel * 0.5 * (normal.y * 0.5 + 0.5));
@@ -357,8 +354,9 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
     };
     
     // Add random drops occasionally to keep it alive
+    // Optimized: reduced frequency from 2% to 1% for battery savings
     const addRandomDrops = () => {
-        if (Math.random() < 0.02) {
+        if (Math.random() < 0.01) {
              waterSim.addDrop(
                  Math.random() * 2 - 1, 
                  Math.random() * 2 - 1, 
@@ -385,16 +383,22 @@ const RippleBackground = forwardRef(({ enabled, sharedPointerRef, config = {} },
     resize();
 
     let raf;
+    let frameCount = 0;
     const render = () => {
+        frameCount++;
+        
         // 1. Simulation Steps (Physics)
+        // Optimized: Run physics at 30 FPS (every 2nd frame) for ~50% less GPU work
         if (waterSim) {
-            // Interact
+            // Interact - still check every frame for responsiveness
             handleInteraction();
-            addRandomDrops();
             
-            // Run Physics
-            waterSim.stepSimulation();
-            waterSim.updateNormals();
+            // Run Physics only every 2nd frame
+            if (frameCount % 2 === 0) {
+                addRandomDrops();
+                waterSim.stepSimulation();
+                waterSim.updateNormals();
+            }
         }
 
         // 2. Render to Screen
