@@ -130,6 +130,17 @@ export default function App() {
       
       if (idleTime > 60 && !isIdle) { // 1 minute
         setIsIdle(true);
+        
+        // Reset state to initial screen
+        setAppState(STATES.WRITING);
+        setWritingStage(WRITING_STAGES.INTRO);
+        setPoem(null);
+        setIllustration(null);
+        setEmotion('');
+        setPoemId(null);
+        setExistingAudioUrl(null);
+        setError(null);
+
         const channel = getSyncChannel();
         if (channel) {
           channel.send({
@@ -257,10 +268,11 @@ export default function App() {
 
   const handleOpenGallery = useCallback((e) => {
     e.stopPropagation();
+    handleInteraction();
     if (recentPoems.length > 0) {
       handleSelectHistoryPoem(recentPoems[0]);
     }
-  }, [recentPoems, handleSelectHistoryPoem]);
+  }, [recentPoems, handleSelectHistoryPoem, handleInteraction]);
 
 
   useEffect(() => {
@@ -303,7 +315,6 @@ export default function App() {
             setPoemId(data.poemId || null);
             setIllustration(data.illustration || null);
             setExistingAudioUrl(data.existingAudioUrl || null);
-            setIsIdle(false);
           }
         })
         .on('broadcast', { event: 'CLEAR' }, (payload) => {
@@ -424,6 +435,7 @@ export default function App() {
               galleryCount={recentPoems.length}
               onInteractionStart={handleStartWriting}
               onInteraction={handleInteraction}
+              shouldReset={isWritingIntro}
             />
           </div>
       )}

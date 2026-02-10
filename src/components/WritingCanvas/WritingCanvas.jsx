@@ -15,12 +15,25 @@ const debounce = (func, wait) => {
   };
 };
 
-export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onInteractionStart, onInteraction, isProjection = false }) {
+export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onInteractionStart, onInteraction, isProjection = false, shouldReset = false }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasContent, setHasContent] = useState(false);
   const lastTouchRef = useRef(null); // Track if we're using touch to avoid pointer duplication
+
+  // Clear canvas when shouldReset becomes true
+  useEffect(() => {
+    if (shouldReset) {
+      const canvas = canvasRef.current;
+      const ctx = contextRef.current;
+      if (canvas && ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setHasContent(false);
+        // We don't broadcast CLEAR here to avoid loops, as the parent controls the reset
+      }
+    }
+  }, [shouldReset]);
 
   // Initialize Supabase Realtime Channel
   useEffect(() => {
