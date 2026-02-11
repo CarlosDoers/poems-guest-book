@@ -15,7 +15,7 @@ const debounce = (func, wait) => {
   };
 };
 
-export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onInteractionStart, onInteraction, isProjection = false, shouldReset = false }) {
+export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = false, onStrokeUpdate, onInteractionStart, onInteraction, isProjection = false, shouldReset = false, externalAudioRef }) {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -424,6 +424,23 @@ export default function WritingCanvas({ onSubmit, isProcessing, fullScreen = fal
     
     // Convert to transparent PNG
     const imageData = canvas.toDataURL('image/png');
+    
+    // TRICK: Create and play/pause a tiny silent audio to "unlock" audio on iPad/iOS
+    // This must be triggered by a direct user action (like this click)
+    try {
+      if (externalAudioRef && externalAudioRef.current) {
+        const audio = externalAudioRef.current;
+        // iPad needs a real attempt to play to consider it unlocked
+        audio.play().then(() => {
+          audio.pause();
+          console.log('🔊 Persistent audio element "unlocked" for iPad');
+        }).catch(err => {
+          console.log('ℹ️ Expected audio warm-up catch:', err.name);
+        });
+      }
+    } catch (e) {
+      console.warn('Audio unlock failed', e);
+    }
     
     if (onInteraction) onInteraction();
     onSubmit(imageData);

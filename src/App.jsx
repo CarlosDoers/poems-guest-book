@@ -59,6 +59,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [isIdle, setIsIdle] = useState(false);
   const lastActivityRef = useRef(Date.now());
+  const globalAudioRef = useRef(null);
 
   // Shared pointer state for water ripple effect
   const sharedPointerRef = useRef({ x: 0, y: 0, down: 0 });
@@ -436,6 +437,7 @@ export default function App() {
               onInteractionStart={handleStartWriting}
               onInteraction={handleInteraction}
               shouldReset={isWritingIntro}
+              externalAudioRef={globalAudioRef}
             />
           </div>
       )}
@@ -478,6 +480,7 @@ export default function App() {
               poemId={poemId}
               onNewPoem={handleNewPoem}
               onInteraction={handleInteraction}
+              externalAudioRef={globalAudioRef}
             />
           </Suspense>
         </div>
@@ -507,6 +510,16 @@ export default function App() {
             Intentar de nuevo
           </button>
         </div>
+      )}
+      
+      {/* Global persistent audio element to unlock iPad/iOS auto-play */}
+      {!isProjectionMode && (
+        <audio 
+          ref={globalAudioRef} 
+          playsInline 
+          preload="auto" 
+          style={{ display: 'none' }} 
+        />
       )}
     </div>
   );

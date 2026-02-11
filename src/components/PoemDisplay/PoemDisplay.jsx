@@ -3,7 +3,7 @@ import { createPoemAudio, cleanupAudioUrl, isElevenLabsConfigured } from '../../
 import { uploadAudio, updatePoemAudio, isSupabaseConfigured } from '../../services/supabase';
 import './PoemDisplay.css';
 
-export default function PoemDisplay({ poem, emotion, onInteraction, poemId, existingAudioUrl, illustration, isProjection, onNewPoem }) {
+export default function PoemDisplay({ poem, emotion, onInteraction, poemId, existingAudioUrl, illustration, isProjection, onNewPoem, externalAudioRef }) {
   const [visibleWords, setVisibleWords] = useState(0); 
   const [isAllComplete, setIsAllComplete] = useState(false);
   const [startTextAnimation, setStartTextAnimation] = useState(false);
@@ -14,8 +14,15 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioError, setAudioError] = useState(null);
   const [isAudioReady, setIsAudioReady] = useState(false);
-  const audioRef = useRef(null);
+  const internalAudioRef = useRef(null);
+  const audioRef = externalAudioRef || internalAudioRef;
   const hasAutoPlayedRef = useRef(false);
+  const poemIdRef = useRef(poemId);
+  
+  // Sync poemId to ref
+  useEffect(() => {
+    poemIdRef.current = poemId;
+  }, [poemId]);
   
   const lines = poem ? poem.split('\n').filter(line => line.trim()) : [];
   const linesWithWords = lines.map(line => line.trim().split(/\s+/)); 
@@ -78,9 +85,9 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
     return () => clearTimeout(initialTimeout);
   }, [startTextAnimation, totalWords]);
 
-  // Generate or load audio when animation completes
+  // Generate or load audio as soon as we have the poem
   useEffect(() => {
-    if (!isAllComplete || !poem || !isElevenLabsConfigured()) return;
+    if (!poem || !isElevenLabsConfigured()) return;
     
     const abortController = new AbortController();
     let tempUrlToCleanup = null;
@@ -122,13 +129,16 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
         if (iosStandalone) {
           console.log('📱 iOS Standalone detected - uploading audio before playback');
           
+          // Wait for poemId to be available from App.jsx (DB save)
+          const currentId = await waitForPoemId();
+          
           // Upload to Supabase first for iOS standalone
-          if (isSupabaseConfigured() && poemId && !abortController.signal.aborted) {
+          if (isSupabaseConfigured() && currentId && !abortController.signal.aborted) {
             console.log('☁️ Uploading audio to Supabase...');
             const permanentUrl = await uploadAudio(audioBlob, emotion);
             
             if (permanentUrl && !abortController.signal.aborted) {
-              await updatePoemAudio(poemId, permanentUrl);
+              await updatePoemAudio(currentId, permanentUrl);
               console.log('✅ Audio saved and ready for playback');
               setAudioUrl(permanentUrl);
               // Mark as ready for iOS standalone immediately
@@ -145,7 +155,7 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
               throw new Error('Failed to upload audio for iOS standalone mode');
             }
           } else {
-            throw new Error('Supabase required for iOS standalone audio playback');
+            throw new Error(`Supabase required for iOS standalone audio playback (ID: ${currentId})`);
           }
         } else {
           // Normal flow: use blob URL first, then upload in background
@@ -155,19 +165,23 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
           setIsAudioReady(false); // Will be set to true by onCanPlayThrough event
           
           // Upload to Supabase in background if configured
-          if (isSupabaseConfigured() && poemId && !abortController.signal.aborted) {
-            console.log('☁️ Uploading audio to Supabase...');
-            const permanentUrl = await uploadAudio(audioBlob, emotion);
-            
-            if (permanentUrl && !abortController.signal.aborted) {
-              await updatePoemAudio(poemId, permanentUrl);
-              console.log('✅ Audio saved to database');
-              
-              // Do not switch to permanent URL immediately to avoid interrupting playback
-              // The local blob URL (tempUrl) is already playing and works fine for this session.
-              // We just wanted to ensure it's saved to DB for future visits.
+          // Non-blocking but wait for ID
+          (async () => {
+            const currentId = await waitForPoemId();
+            if (isSupabaseConfigured() && currentId && !abortController.signal.aborted) {
+              console.log('☁️ Uploading audio to Supabase in background...');
+              try {
+                const permanentUrl = await uploadAudio(audioBlob, emotion);
+                
+                if (permanentUrl && !abortController.signal.aborted) {
+                  await updatePoemAudio(currentId, permanentUrl);
+                  console.log('✅ Audio saved to database');
+                }
+              } catch (err) {
+                console.warn('Background audio upload failed:', err);
+              }
             }
-          }
+          })();
         }
       } catch (error) {
         if (!abortController.signal.aborted) {
@@ -177,10 +191,25 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
       } finally {
         if (!abortController.signal.aborted) {
           setIsLoadingAudio(false);
+          // If we have an existing URL or just set one, eventually mark as ready 
+          // as a fallback for missing onCanPlay events
+          setTimeout(() => {
+            if (!abortController.signal.aborted) setIsAudioReady(true);
+          }, 2000);
         }
       }
     };
     
+    // Internal function to wait for poemId if we're uploading
+    const waitForPoemId = async () => {
+      let attempts = 0;
+      while (!poemIdRef.current && attempts < 20 && !abortController.signal.aborted) {
+        await new Promise(r => setTimeout(r, 500));
+        attempts++;
+      }
+      return poemIdRef.current;
+    };
+
     handleAudio();
     
     return () => {
@@ -190,7 +219,7 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAllComplete, poem, emotion, poemId, existingAudioUrl]);
+  }, [poem, emotion, existingAudioUrl]);
 
   // Audio control handlers
   const handlePlayPause = () => {
@@ -211,6 +240,7 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
       if (audioRef.current.readyState < 2) {
         audioRef.current.load();
       }
+      hasAutoPlayedRef.current = true; // Mark as played to prevent auto-play later
       const playPromise = audioRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch(err => {
@@ -222,34 +252,82 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
     }
   };
 
-  const handleAudioPlay = () => setIsPlaying(true);
-  const handleAudioPause = () => setIsPlaying(false);
-  const handleAudioEnded = () => setIsPlaying(false);
-  const handleAudioCanPlay = () => {
-    console.log('✅ Audio ready to play');
-    setIsAudioReady(true);
-    setIsLoadingAudio(false);
-    
-    // Auto-play SOLO en la pantalla de control (NO en proyección)
-    if (!isProjection && !hasAutoPlayedRef.current && audioRef.current) {
-      hasAutoPlayedRef.current = true;
-      console.log('🎵 Auto-playing audio on controller screen...');
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(err => {
-          console.warn('Auto-play prevented by browser:', err);
-          // Reset flag so user can manually play
-          hasAutoPlayedRef.current = false;
-        });
-      }
+  // Auto-play trigger: Play once when audio is ready
+  useEffect(() => {
+    // Only auto-play on controller screen, once, when audio ready
+    if (isAudioReady && audioUrl && !isProjection && !hasAutoPlayedRef.current && audioRef.current) {
+      const triggerAutoPlay = () => {
+        if (hasAutoPlayedRef.current) return;
+        console.log('🎵 Auto-playing audio...');
+        hasAutoPlayedRef.current = true;
+        
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            console.warn('Auto-play prevented by browser:', err);
+            // User will have to play manually
+          });
+        }
+      };
+
+      const timer = setTimeout(triggerAutoPlay, 100);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [isAudioReady, audioUrl, isProjection]);
+
   const handleAudioError = (e) => {
     console.error('Audio loading error:', e);
     setAudioError('Error al cargar el audio');
     setIsLoadingAudio(false);
     setIsAudioReady(false);
   };
+
+  // Attach event listeners to audio element
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onEnded = () => setIsPlaying(false);
+    const onCanPlayThrough = () => {
+      console.log('✅ Audio ready to play (external)');
+      setIsAudioReady(true);
+      setIsLoadingAudio(false);
+    };
+    const onLoadedMetadata = () => {
+        console.log('✅ Audio metadata loaded (external)');
+        setIsAudioReady(true);
+    };
+    const onError = (e) => handleAudioError(e);
+
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('canplaythrough', onCanPlayThrough);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('error', onError);
+
+    return () => {
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('canplaythrough', onCanPlayThrough);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('error', onError);
+    };
+  }, [audioRef]);
+
+  // Sync source to audio element
+  useEffect(() => {
+    if (audioUrl && audioRef.current) {
+      // Avoid re-setting the same source
+      if (audioRef.current.src !== audioUrl) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.load();
+      }
+    }
+  }, [audioUrl, audioRef]);
 
   if (!poem) return null;
 
@@ -290,25 +368,7 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
         )}
       </div>
       
-      {/* Hidden audio element - Only on control screen */}
-      {audioUrl && !isProjection && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          onPlay={handleAudioPlay}
-          onPause={handleAudioPause}
-          onEnded={handleAudioEnded}
-          onCanPlayThrough={handleAudioCanPlay}
-          onLoadedData={handleAudioCanPlay}
-          onLoadedMetadata={() => {
-            console.log('✅ Audio metadata loaded');
-            if (!isAudioReady) setIsAudioReady(true);
-          }}
-          onError={handleAudioError}
-          preload="auto"
-          playsInline
-        />
-      )}
+
       
       <div className={`poem-actions-external ${isAllComplete ? 'visible' : ''}`}>
         {/* Audio controls */}
