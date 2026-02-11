@@ -358,8 +358,8 @@ export default function PoemDisplay({ poem, emotion, onInteraction, poemId, exis
           ))}
         </div>
         
-        {/* Background Illustration */}
-        {illustration && (
+        {/* Background Illustration - Only shown on controller screen, not on projection */}
+        {illustration && !isProjection && (
           <img 
             src={illustration} 
             alt="Poem Illustration" 
