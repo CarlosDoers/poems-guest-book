@@ -152,24 +152,38 @@
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(4vh + env(safe-area-inset-bottom, 0px));
+  bottom: calc(8vh + env(safe-area-inset-bottom, 0px));
+  
+  /* Button Styles */
   font-family: var(--font-sans);
-  font-size: 0.95rem;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.85);
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
-  /* Pulsación sutil para invitar a tocar */
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--color-bg);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 1rem 2.5rem;
+  border-radius: 50px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  
+  /* Interactividad */
+  cursor: pointer;
+  pointer-events: auto; /* Ensure it captures clicks even if overlaid */
+  transition: all 0.3s ease;
+  
+  /* Pulsación sutil */
   animation: cta-pulse 2.5s ease-in-out infinite;
 }
 
 @keyframes cta-pulse {
   0%, 100% {
-    opacity: 0.85;
     transform: translateX(-50%) scale(1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
   }
   50% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1.02);
+    transform: translateX(-50%) scale(1.05);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -197,7 +211,7 @@
   right: 0;
   text-align: center;
   font-family: var(--font-sans);
-  font-size: 1.2rem;
+  font-size: 2.5rem;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.9);
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);

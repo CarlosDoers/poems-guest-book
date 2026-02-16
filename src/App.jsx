@@ -424,7 +424,7 @@ export default function App() {
           <div className="writing-screen">
             {/* Hint only shows when actively writing (not in intro overlay) */}
             {isWritingCanvas && (
-                 <div className="writing-hint">Usa el lápiz para escribir o dibujar una emoción</div>
+                 <div className="writing-hint">Escribe o dibuja una emoción</div>
              )}
             
             <WritingCanvas 
@@ -449,7 +449,7 @@ export default function App() {
           style={{ pointerEvents: 'none', position: 'absolute', inset: 0 }}
         >
           <div className="intro-title">Eres un poema</div>
-          <div className="intro-cta">Toca para comenzar</div>
+          <div className="intro-cta" onClick={handleStartWriting}>EMPEZAR</div>
           
           {/* Gallery Link (Restored) - Needs pointer events enabled specifically */}
           {SHOW_GALLERY && !isPoemsLoading && recentPoems.length > 0 && (
